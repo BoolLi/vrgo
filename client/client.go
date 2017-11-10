@@ -1,7 +1,6 @@
 package main
 
 import (
-	"basic"
 	"bufio"
 	"flag"
 	"fmt"
@@ -9,6 +8,8 @@ import (
 	"net/rpc"
 	"os"
 	"strconv"
+
+	"github.com/BoolLi/vrgo/basic"
 )
 
 var port = flag.Int("port", 1234, "server port")

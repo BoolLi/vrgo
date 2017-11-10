@@ -1,13 +1,14 @@
 package main
 
 import (
-	"basic"
 	"flag"
 	"log"
 	"net"
 	"net/http"
 	"net/rpc"
 	"strconv"
+
+	"github.com/BoolLi/vrgo/basic"
 )
 
 var port = flag.Int("port", 1234, "server port")
