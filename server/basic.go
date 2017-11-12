@@ -1,5 +1,4 @@
-// basic defines the basic RPCs the server exports.
-package basic
+package server
 
 import (
 	"fmt"

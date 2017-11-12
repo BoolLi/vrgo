@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"bufio"
@@ -9,13 +9,13 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/BoolLi/vrgo/basic"
+	"github.com/BoolLi/vrgo/server"
 )
 
-var port = flag.Int("port", 1234, "server port")
+var serverPort = flag.Int("server_port", 1234, "server port")
 
-func main() {
-	p := strconv.Itoa(*port)
+func RunClient() {
+	p := strconv.Itoa(*serverPort)
 	client, err := rpc.DialHTTP("tcp", "localhost:"+p)
 	if err != nil {
 		log.Fatal("dialing:", err)
@@ -26,8 +26,8 @@ func main() {
 		fmt.Print("Enter text: \n")
 		text, _ := reader.ReadString('\n')
 
-		args := &basic.EchoArgs{Message: text}
-		var reply basic.EchoResp
+		args := &server.EchoArgs{Message: text}
+		var reply server.EchoResp
 		call := client.Go("Basic.DelayedEcho", args, &reply, nil)
 		go printReply(call)
 	}
@@ -35,5 +35,5 @@ func main() {
 
 func printReply(call *rpc.Call) {
 	resp := <-call.Done
-	fmt.Printf("echo response: %v", resp.Reply.(*basic.EchoResp).Message)
+	fmt.Printf("echo response: %v", resp.Reply.(*server.EchoResp).Message)
 }

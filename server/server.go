@@ -1,4 +1,5 @@
-package main
+// server defines an HTTP RPC server.
+package server
 
 import (
 	"flag"
@@ -7,19 +8,9 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
-
-	"github.com/BoolLi/vrgo/basic"
 )
 
 var port = flag.Int("port", 1234, "server port")
-
-// TODO: Move main() to another place.
-func main() {
-	Register(new(basic.Basic))
-	go Serve()
-	for {
-	}
-}
 
 // Register registers a RPC receiver.
 func Register(rcvr interface{}) error {
