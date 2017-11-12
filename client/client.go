@@ -40,6 +40,9 @@ func RunClient() {
 		var resp server.Response
 		call := client.Go("VrgoRPC.Execute", req, &resp, nil)
 		go printResp(call)
+
+		// TODO: Need to find a way to increment requestNum but also allow users to send request with same requestNum.
+		*requestNum = *requestNum + 1
 	}
 }
 

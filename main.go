@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/BoolLi/vrgo/client"
 	"github.com/BoolLi/vrgo/server"
@@ -23,6 +24,11 @@ func main() {
 		server.Register(new(server.Basic))
 		server.Register(new(server.VrgoRPC))
 		go server.Serve()
+		server.New()
+
+		time.Sleep(10 * time.Second)
+		server.DummyConsumeIncomingReq()
+
 		for {
 		}
 	case "client":

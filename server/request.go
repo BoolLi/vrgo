@@ -59,6 +59,11 @@ func (v *VrgoRPC) Execute(req *Request, resp *Response) error {
 	}
 
 	// Third case.
-	*resp = Response{}
+	ch := AddIncomingReq(req)
+	select {
+	case _ = <-ch:
+		*resp = Response{}
+	}
+
 	return nil
 }
