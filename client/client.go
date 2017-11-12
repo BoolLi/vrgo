@@ -28,12 +28,12 @@ func main() {
 
 		args := &basic.EchoArgs{Message: text}
 		var reply basic.EchoResp
-		err = client.Call("Basic.Echo", args, &reply)
-		if err != nil {
-			log.Fatal("echo error:", err)
-		}
-		fmt.Printf("Echo response: %v\n", reply.Message)
-
+		call := client.Go("Basic.DelayedEcho", args, &reply, nil)
+		go printReply(call)
 	}
+}
 
+func printReply(call *rpc.Call) {
+	resp := <-call.Done
+	fmt.Printf("echo response: %v", resp.Reply.(*basic.EchoResp).Message)
 }
