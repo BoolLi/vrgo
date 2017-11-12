@@ -13,6 +13,8 @@ import (
 )
 
 var serverPort = flag.Int("server_port", 1234, "server port")
+var clientId = flag.Int("client_id", 0, "ID of the client")
+var requestNum = flag.Int("request_num", 0, "request number")
 
 // RunClient runs the client code.
 func RunClient() {
@@ -26,15 +28,22 @@ func RunClient() {
 	for {
 		fmt.Print("Enter text: \n")
 		text, _ := reader.ReadString('\n')
+		req := server.Request{
+			Op: server.Operation{
+				Message: text,
+			},
+			ClientId:   *clientId,
+			RequestNum: *requestNum,
+		}
+		log.Printf("\nuser request: %v\n", req)
 
-		args := &server.EchoArgs{Message: text}
-		var reply server.EchoResp
-		call := client.Go("Basic.DelayedEcho", args, &reply, nil)
-		go printReply(call)
+		var resp server.Response
+		call := client.Go("VrgoRPC.Execute", req, &resp, nil)
+		go printResp(call)
 	}
 }
 
-func printReply(call *rpc.Call) {
+func printResp(call *rpc.Call) {
 	resp := <-call.Done
-	fmt.Printf("echo response: %v", resp.Reply.(*server.EchoResp).Message)
+	fmt.Printf("Vrgo response: %v\n", resp)
 }

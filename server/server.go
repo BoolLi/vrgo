@@ -8,9 +8,18 @@ import (
 	"net"
 	"net/http"
 	"net/rpc"
+
+	cache "github.com/patrickmn/go-cache"
 )
 
 var port = flag.Int("port", 1234, "server port")
+var clientTable *cache.Cache
+
+// Init initializes the server with necessary dependencies.
+func Init(t *cache.Cache) error {
+	clientTable = t
+	return nil
+}
 
 // Register registers a RPC receiver.
 func Register(rcvr interface{}) error {
