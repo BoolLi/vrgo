@@ -14,6 +14,7 @@ import (
 
 var serverPort = flag.Int("server_port", 1234, "server port")
 
+// RunClient runs the client code.
 func RunClient() {
 	p := strconv.Itoa(*serverPort)
 	client, err := rpc.DialHTTP("tcp", "localhost:"+p)
