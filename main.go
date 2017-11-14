@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"time"
 
+	"github.com/BoolLi/vrgo/backup"
 	"github.com/BoolLi/vrgo/client"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/primary"
@@ -15,7 +15,7 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-var mode = flag.String("mode", "", "'server' mode or 'client' mode")
+var mode = flag.String("mode", "", "'server', 'client', or 'backup' mode")
 
 func main() {
 	flag.Parse()
@@ -35,14 +35,12 @@ func main() {
 		if err := primary.Init(oplog.New(), clientTable); err != nil {
 			log.Fatalf("failed to initialize primary: %v", err)
 		}
-
-		time.Sleep(10 * time.Second)
-		primary.DummyConsumeIncomingReq()
-
 		for {
 		}
 	case "client":
 		client.RunClient()
+	case "backup":
+		backup.RunBackup()
 	default:
 		fmt.Printf("mode %v can only be 'server' or 'client'\n", *mode)
 	}

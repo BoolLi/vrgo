@@ -30,6 +30,7 @@ func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
 	ch := primary.ProcessIncomingReq(req)
 	select {
 	case _ = <-ch:
+		log.Println("done processing request")
 		*resp = rpc.Response{}
 	}
 

@@ -2,17 +2,20 @@ package primary
 
 import (
 	"log"
+	"net/rpc"
 	"strconv"
+	"time"
 
+	"github.com/BoolLi/vrgo/backup"
 	"github.com/BoolLi/vrgo/oplog"
-	"github.com/BoolLi/vrgo/rpc"
 
+	vrrpc "github.com/BoolLi/vrgo/rpc"
 	cache "github.com/patrickmn/go-cache"
 )
 
 // ClientRequest represents the in-memory state of a client request in the primary.
 type ClientRequest struct {
-	Request rpc.Request
+	Request vrrpc.Request
 	done    chan int
 }
 
@@ -24,15 +27,25 @@ var opNum int
 var clientTable *cache.Cache
 var viewNum int
 
+// TODO: Keep track of the clients dynamically.
+var client *rpc.Client
+
 // Init initializes data structures needed for the primary.
 func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
 	incomingReqs = make(chan ClientRequest, incomingReqsSize)
 	opRequestLog = opLog
 	clientTable = t
+
+	var err error
+	client, err = rpc.DialHTTP("tcp", "localhost:9876")
+	if err != nil {
+		log.Fatal("failed to connect to client 9876: ", err)
+	}
+
 	return nil
 }
 
-func ProcessIncomingReq(req *rpc.Request) chan int {
+func ProcessIncomingReq(req *vrrpc.Request) chan int {
 	// 1. Add request to incoming queue.
 	ch := AddIncomingReq(req)
 	// 2. Advance op num.
@@ -46,20 +59,35 @@ func ProcessIncomingReq(req *rpc.Request) chan int {
 
 	// 4. Update client table.
 	clientTable.Set(strconv.Itoa(req.ClientId),
-		rpc.Response{
+		vrrpc.Response{
 			ViewNum:    viewNum,
 			RequestNum: req.RequestNum,
-			OpResult:   rpc.OperationResult{},
+			OpResult:   vrrpc.OperationResult{},
 		}, cache.NoExpiration)
 	log.Printf("clientTable adding %v at viewNum %v", req, viewNum)
 
 	// 5. Send Prepare messages.
+	args := backup.Prepare{
+		ViewNum:   viewNum,
+		Request:   *req,
+		OpNum:     opNum,
+		CommitNum: 0,
+	}
+	var reply backup.Reply
+	// TODO: primary should send to all clients and wait for f replies.
+	err := client.Call("BackupReply.Echo", args, &reply)
+	if err != nil {
+		log.Fatal("backup reply error:", err)
+	}
+	log.Printf("got reply from client: %v", reply)
+	// TODO: Intead of calling this, we should wait for f replies on a separate thread.
+	go DummyConsumeIncomingReq()
 
 	return ch
 }
 
-// AddIncomingReq adds a rpc.Request to the primary to process.
-func AddIncomingReq(req *rpc.Request) chan int {
+// AddIncomingReq adds a vrrpc.Request to the primary to process.
+func AddIncomingReq(req *vrrpc.Request) chan int {
 	ch := make(chan int)
 	r := ClientRequest{
 		Request: *req,
@@ -70,6 +98,7 @@ func AddIncomingReq(req *rpc.Request) chan int {
 }
 
 func DummyConsumeIncomingReq() {
+	time.Sleep(10 * time.Second)
 	select {
 	case r := <-incomingReqs:
 		log.Printf("cosuming request %v", r.Request)
