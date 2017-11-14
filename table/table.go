@@ -1,3 +1,4 @@
+// table provides the client table interface.
 package table
 
 import (

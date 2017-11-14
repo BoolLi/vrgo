@@ -27,7 +27,6 @@ func main() {
 		if err := server.Init(clientTable); err != nil {
 			log.Fatalf("failed to initialize server: %v", err)
 		}
-		server.Register(new(server.Basic))
 		server.Register(new(server.VrgoRPC))
 		go server.Serve()
 

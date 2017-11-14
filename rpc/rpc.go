@@ -1,3 +1,4 @@
+// rpc defines all the RPC interfaces.
 package rpc
 
 // TODO: Also define interfaces in this package.

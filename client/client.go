@@ -1,3 +1,4 @@
+// client defines the client side logic.
 package client
 
 import (

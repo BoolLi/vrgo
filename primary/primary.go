@@ -1,3 +1,4 @@
+// primary implement logic of a primary in VR.
 package primary
 
 import (

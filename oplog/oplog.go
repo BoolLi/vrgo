@@ -1,3 +1,4 @@
+// oplog provides the interface to the in-memory log.
 package oplog
 
 import (
