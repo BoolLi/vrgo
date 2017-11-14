@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/BoolLi/vrgo/client"
+	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/primary"
 	"github.com/BoolLi/vrgo/server"
 	"github.com/BoolLi/vrgo/table"
@@ -20,11 +21,14 @@ func main() {
 
 	switch *mode {
 	case "server":
+		// Create server.
 		server.Init(table.New(cache.NoExpiration, cache.NoExpiration))
 		server.Register(new(server.Basic))
 		server.Register(new(server.VrgoRPC))
 		go server.Serve()
-		primary.New()
+
+		// Create primary.
+		primary.Init(oplog.New())
 
 		time.Sleep(10 * time.Second)
 		primary.DummyConsumeIncomingReq()

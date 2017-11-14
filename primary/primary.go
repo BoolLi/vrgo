@@ -3,6 +3,7 @@ package primary
 import (
 	"log"
 
+	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/rpc"
 )
 
@@ -15,10 +16,12 @@ type ClientRequest struct {
 const incomingReqsSize = 5
 
 var incomingReqs chan ClientRequest
+var opRequestLog *oplog.OpRequestLog
 
-// New initializes data structures needed for the primary.
-func New() {
+// Init initializes data structures needed for the primary.
+func Init(opLog *oplog.OpRequestLog) {
 	incomingReqs = make(chan ClientRequest, incomingReqsSize)
+	opRequestLog = opLog
 }
 
 // AddIncomingReq adds a rpc.Request to the primary to process.
