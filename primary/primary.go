@@ -1,11 +1,14 @@
-// TODO: Change this into its own package.
-package server
+package primary
 
-import "log"
+import (
+	"log"
+
+	"github.com/BoolLi/vrgo/rpc"
+)
 
 // ClientRequest represents the in-memory state of a client request in the primary.
 type ClientRequest struct {
-	Request Request
+	Request rpc.Request
 	done    chan int
 }
 
@@ -13,11 +16,13 @@ const incomingReqsSize = 5
 
 var incomingReqs chan ClientRequest
 
+// New initializes data structures needed for the primary.
 func New() {
 	incomingReqs = make(chan ClientRequest, incomingReqsSize)
 }
 
-func AddIncomingReq(req *Request) chan int {
+// AddIncomingReq adds a rpc.Request to the primary to process.
+func AddIncomingReq(req *rpc.Request) chan int {
 	ch := make(chan int)
 	r := ClientRequest{
 		Request: *req,

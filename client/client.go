@@ -9,7 +9,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/BoolLi/vrgo/server"
+	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
 
 var serverPort = flag.Int("server_port", 1234, "server port")
@@ -28,8 +28,8 @@ func RunClient() {
 	for {
 		fmt.Print("Enter text: \n")
 		text, _ := reader.ReadString('\n')
-		req := server.Request{
-			Op: server.Operation{
+		req := vrrpc.Request{
+			Op: vrrpc.Operation{
 				Message: text,
 			},
 			ClientId:   *clientId,
@@ -37,7 +37,7 @@ func RunClient() {
 		}
 		log.Printf("\nuser request: %v\n", req)
 
-		var resp server.Response
+		var resp vrrpc.Response
 		call := client.Go("VrgoRPC.Execute", req, &resp, nil)
 		go printResp(call)
 

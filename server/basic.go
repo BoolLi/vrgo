@@ -1,3 +1,4 @@
+// TODO: Move this to rpc.
 package server
 
 import (
