@@ -6,8 +6,6 @@ import (
 
 	"github.com/BoolLi/vrgo/primary"
 	"github.com/BoolLi/vrgo/rpc"
-
-	cache "github.com/patrickmn/go-cache"
 )
 
 // VrgoRPC defines the user RPCs exported by server.
@@ -27,17 +25,9 @@ func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
 	// First time receiving from this client.
 	if !ok {
 		log.Printf("first time receiving request %v from client %v\n", req.RequestNum, req.ClientId)
-		clientTable.Set(k,
-			rpc.Response{
-				ViewNum:    0,
-				RequestNum: req.RequestNum,
-				OpResult:   rpc.OperationResult{},
-			}, cache.NoExpiration)
-		// Push request to imcoming channel.
 	}
 
-	// Third case.
-	ch := primary.AddIncomingReq(req)
+	ch := primary.ProcessIncomingReq(req)
 	select {
 	case _ = <-ch:
 		*resp = rpc.Response{}

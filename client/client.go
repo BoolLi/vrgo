@@ -35,7 +35,6 @@ func RunClient() {
 			ClientId:   *clientId,
 			RequestNum: *requestNum,
 		}
-		log.Printf("\nuser request: %v\n", req)
 
 		var resp vrrpc.Response
 		call := client.Go("VrgoRPC.Execute", req, &resp, nil)

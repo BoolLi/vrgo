@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/BoolLi/vrgo/client"
@@ -22,13 +23,18 @@ func main() {
 	switch *mode {
 	case "server":
 		// Create server.
-		server.Init(table.New(cache.NoExpiration, cache.NoExpiration))
+		clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
+		if err := server.Init(clientTable); err != nil {
+			log.Fatalf("failed to initialize server: %v", err)
+		}
 		server.Register(new(server.Basic))
 		server.Register(new(server.VrgoRPC))
 		go server.Serve()
 
 		// Create primary.
-		primary.Init(oplog.New())
+		if err := primary.Init(oplog.New(), clientTable); err != nil {
+			log.Fatalf("failed to initialize primary: %v", err)
+		}
 
 		time.Sleep(10 * time.Second)
 		primary.DummyConsumeIncomingReq()
