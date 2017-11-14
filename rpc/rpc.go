@@ -1,7 +1,10 @@
 // rpc defines all the RPC interfaces.
 package rpc
 
-// TODO: Also define interfaces in this package.
+// VrgoService defines the APIs Vrgo exposes to users.
+type VrgoService interface {
+	Execute(*Request, *Response) error
+}
 
 // Request is the input argument type to RequestRPC.
 type Request struct {

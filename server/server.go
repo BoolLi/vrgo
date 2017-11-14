@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/rpc"
 
+	vrrpc "github.com/BoolLi/vrgo/rpc"
 	cache "github.com/patrickmn/go-cache"
 )
 
@@ -22,7 +23,7 @@ func Init(t *cache.Cache) error {
 }
 
 // Register registers a RPC receiver.
-func Register(rcvr interface{}) error {
+func Register(rcvr vrrpc.VrgoService) error {
 	return rpc.Register(rcvr)
 }
 
