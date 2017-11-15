@@ -73,9 +73,9 @@ func ProcessIncomingReq(req *vrrpc.Request) chan int {
 		OpNum:     opNum,
 		CommitNum: 0,
 	}
-	var reply vrrpc.Reply
+	var reply vrrpc.PrepareOk
 	// TODO: primary should send to all clients and wait for f replies.
-	err := client.Call("BackupReply.Echo", args, &reply)
+	err := client.Call("BackupReply.Prepare", args, &reply)
 	if err != nil {
 		log.Fatal("backup reply error:", err)
 	}

@@ -1,7 +1,7 @@
 package rpc
 
 type BackupService interface {
-  Prepare(args *PrepareArgs, resp *Reply)
+  Prepare(args *PrepareArgs, resp *PrepareOk) error
 }
 
 // Prepare is the input argument type to Echo.
@@ -12,9 +12,8 @@ type PrepareArgs struct {
 	CommitNum int
 }
 
-// Reply is the output type of Echo.
-// TODO: Change this later.
-type Reply struct {
+// PrepareOk is the output type of Echo.
+type PrepareOk struct {
 	ViewNum    int
 	RequestNum int
 	Result     string

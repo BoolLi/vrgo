@@ -18,7 +18,7 @@ var port = flag.Int("backup_port", 9876, "backup port")
 type BackupReply int
 
 // Echo returns the exact same message sent by the caller.
-func (r *BackupReply) Echo(args *vrrpc.PrepareArgs, resp *vrrpc.Reply) error {
+func (r *BackupReply) Prepare(args *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk) error {
 	log.Printf("got prepare message from primary: %v", *args)
 	resp.ViewNum = args.ViewNum
 	resp.RequestNum = args.Request.RequestNum
@@ -26,9 +26,14 @@ func (r *BackupReply) Echo(args *vrrpc.PrepareArgs, resp *vrrpc.Reply) error {
 	return nil
 }
 
+// Register registers a RPC receiver.
+func Register(rcvr vrrpc.BackupService) error {
+	return rpc.Register(rcvr)
+}
+
 func RunBackup() {
 	b := new(BackupReply)
-	rpc.Register(b)
+	Register(b)
 	rpc.HandleHTTP()
 
 	p := strconv.Itoa(*port)
