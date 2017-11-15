@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/BoolLi/vrgo/backup"
 	"github.com/BoolLi/vrgo/oplog"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
@@ -68,13 +67,13 @@ func ProcessIncomingReq(req *vrrpc.Request) chan int {
 	log.Printf("clientTable adding %v at viewNum %v", req, viewNum)
 
 	// 5. Send Prepare messages.
-	args := backup.Prepare{
+	args := vrrpc.PrepareArgs{
 		ViewNum:   viewNum,
 		Request:   *req,
 		OpNum:     opNum,
 		CommitNum: 0,
 	}
-	var reply backup.Reply
+	var reply vrrpc.Reply
 	// TODO: primary should send to all clients and wait for f replies.
 	err := client.Call("BackupReply.Echo", args, &reply)
 	if err != nil {
