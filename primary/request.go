@@ -26,7 +26,7 @@ func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
 		log.Printf("first time receiving request %v from client %v\n", req.RequestNum, req.ClientId)
 	}
 
-	ch := ProcessIncomingReq(req)
+	ch := AddIncomingReq(req)
 	select {
 	case _ = <-ch:
 		log.Println("done processing request")
