@@ -10,16 +10,17 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/BoolLi/vrgo/flags"
+
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
 
-var serverPort = flag.Int("server_port", 1234, "server port")
 var clientId = flag.Int("client_id", 0, "ID of the client")
 var requestNum = flag.Int("request_num", 0, "request number")
 
 // RunClient runs the client code.
 func RunClient() {
-	p := strconv.Itoa(*serverPort)
+	p := strconv.Itoa(*flags.Port)
 	client, err := rpc.DialHTTP("tcp", "localhost:"+p)
 	if err != nil {
 		log.Fatal("dialing:", err)

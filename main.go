@@ -4,9 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/BoolLi/vrgo/backup"
 	"github.com/BoolLi/vrgo/client"
+	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/primary"
 	"github.com/BoolLi/vrgo/server"
@@ -15,12 +17,11 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-var mode = flag.String("mode", "", "'server', 'client', or 'backup' mode")
-
 func main() {
 	flag.Parse()
+	log.SetOutput(os.Stdout)
 
-	switch *mode {
+	switch *flags.Mode {
 	case "server":
 		// Create server.
 		clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
@@ -48,6 +49,6 @@ func main() {
 		for {
 		}
 	default:
-		fmt.Printf("mode %v can only be 'server' or 'client'\n", *mode)
+		fmt.Printf("mode %v can only be 'server' or 'client'\n", *flags.Mode)
 	}
 }
