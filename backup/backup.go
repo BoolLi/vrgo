@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"strconv"
+	"time"
 
 	"github.com/BoolLi/vrgo/oplog"
 	vrrpc "github.com/BoolLi/vrgo/rpc"
@@ -20,6 +21,7 @@ var opRequestLog *oplog.OpRequestLog
 var opNum int
 var clientTable *cache.Cache
 var viewNum int
+var incomingCommit chan int // TODO: change to type CommitRequest when defined
 
 // BackupReply defines the basic RPCs exported by server.
 type BackupReply int
@@ -33,6 +35,9 @@ func (r *BackupReply) Prepare(args *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk) er
 	// Backup should block if it does not have op for all earlier requests in its log.
 	if args.OpNum > (lastOp + 1) {
 		// Channel that listens for update from Commit Service
+		incomingCommit = make(chan int)
+		_ = <- incomingCommit
+		log.Print("received a commit from commit service")
 	}
 	// 1. Increment op number
 	opNum += 1
@@ -50,8 +55,13 @@ func (r *BackupReply) Prepare(args *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk) er
 			OpResult:   vrrpc.OperationResult{},
 		}, cache.NoExpiration)
 	log.Printf("clientTable adding %v at viewNum %v", args.Request, viewNum)
-	
+
 	// 4. Send PrepareOk message to primary
+	*resp = vrrpc.PrepareOk{
+		ViewNum:	viewNum,
+		OpNum:		opNum,
+		Id:				333, // TODO: fetch Id
+	}
 
 	return nil
 }
@@ -75,4 +85,10 @@ func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
 	opRequestLog = opLog
 	clientTable = t
 	return nil
+}
+
+func DummyCommitService(){
+	time.Sleep(10 * time.Second)
+	incomingCommit <- 1
+	log.Print("committing some dummy request")
 }

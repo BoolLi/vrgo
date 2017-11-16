@@ -74,13 +74,20 @@ func ProcessIncomingReq(req *vrrpc.Request) chan int {
 		CommitNum: 0,
 	}
 	var reply vrrpc.PrepareOk
-	// TODO: primary should send to all clients and wait for f replies.
+	// TODO: primary should send to all backups and wait for f replies.
 	err := client.Call("BackupReply.Prepare", args, &reply)
 	if err != nil {
 		log.Fatal("backup reply error:", err)
 	}
 	log.Printf("got reply from client: %v", reply)
+	
 	// TODO: Intead of calling this, we should wait for f replies on a separate thread.
+	// Wait for f PrepareOk messages before
+	// 1. Make sure all earlier operations are executed
+	// 2. Execute current operation by making up call to service code
+	// 3. Increment commit number
+	// 4. Respond to client
+	// 5. Update client's entry in client table to contain result
 	go DummyConsumeIncomingReq()
 
 	return ch

@@ -28,6 +28,13 @@ func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
 	}
 
 	ch := primary.ProcessIncomingReq(req)
+
+	// Wait for f PrepareOk messages before
+	// 1. Make sure all earlier operations are executed
+	// 2. Execute current operation by making up call to service code
+	// 3. Increment commit number
+	// 4. Responding to client
+	// 5. Updating client's entry in client table to contain result
 	select {
 	case _ = <-ch:
 		log.Println("done processing request")
