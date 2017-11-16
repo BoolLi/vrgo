@@ -2,7 +2,6 @@
 package backup
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -10,12 +9,13 @@ import (
 	"net/rpc"
 	"strconv"
 
+	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/oplog"
+
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 	cache "github.com/patrickmn/go-cache"
 )
 
-var port = flag.Int("backup_port", 9876, "backup port")
 var opRequestLog *oplog.OpRequestLog
 var opNum int
 var clientTable *cache.Cache
@@ -28,7 +28,7 @@ type BackupReply int
 func (r *BackupReply) Prepare(args *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk) error {
 	log.Printf("got prepare message from primary: %v", *args)
 
- 	_, lastOp, _ := opRequestLog.ReadLast()
+	_, lastOp, _ := opRequestLog.ReadLast()
 
 	// Backup should block if it does not have op for all earlier requests in its log.
 	if args.OpNum > (lastOp + 1) {
@@ -50,7 +50,7 @@ func (r *BackupReply) Prepare(args *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk) er
 			OpResult:   vrrpc.OperationResult{},
 		}, cache.NoExpiration)
 	log.Printf("clientTable adding %v at viewNum %v", args.Request, viewNum)
-	
+
 	// 4. Send PrepareOk message to primary
 
 	return nil
@@ -64,9 +64,9 @@ func Register(rcvr vrrpc.BackupService) error {
 // Serve starts an HTTP server to handle RPC requests.
 func Serve() {
 	rpc.HandleHTTP()
-	l, err := net.Listen("tcp", fmt.Sprintf(":%v", *port))
+	l, err := net.Listen("tcp", fmt.Sprintf(":%v", *flags.Port))
 	if err != nil {
-		log.Fatalf("failed to listen on port %v: %v", *port, err)
+		log.Fatalf("failed to listen on port %v: %v", *flags.Port, err)
 	}
 	http.Serve(l, nil)
 }

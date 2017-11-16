@@ -2,9 +2,12 @@
 package primary
 
 import (
+	"flag"
+	"fmt"
 	"log"
 	"net/rpc"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BoolLi/vrgo/oplog"
@@ -12,6 +15,31 @@ import (
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 	cache "github.com/patrickmn/go-cache"
 )
+
+type clientPorts []int
+
+func (cp *clientPorts) String() string {
+	var ps []string
+	for _, p := range *cp {
+		ps = append(ps, fmt.Sprintf("%v", p))
+	}
+	return strings.Join(ps, ", ")
+}
+
+func (cp *clientPorts) Set(value string) error {
+	p, err := strconv.Atoi(value)
+	if err != nil {
+		return err
+	}
+	*cp = append(*cp, p)
+	return nil
+}
+
+var ports clientPorts
+
+func init() {
+	flag.Var(&ports, "backup_ports", "backup ports")
+}
 
 // ClientRequest represents the in-memory state of a client request in the primary.
 type ClientRequest struct {
@@ -36,10 +64,12 @@ func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
 	opRequestLog = opLog
 	clientTable = t
 
+	// TODO: Connect to multiple backups instead of just one.
+	p := ports[0]
 	var err error
-	client, err = rpc.DialHTTP("tcp", "localhost:9876")
+	client, err = rpc.DialHTTP("tcp", fmt.Sprintf("localhost:%v", p))
 	if err != nil {
-		log.Fatal("failed to connect to client 9876: ", err)
+		log.Fatal(fmt.Sprintf("failed to connect to client %v: ", p), err)
 	}
 
 	return nil

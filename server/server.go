@@ -2,18 +2,18 @@
 package server
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"net/rpc"
 
+	"github.com/BoolLi/vrgo/flags"
+
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 	cache "github.com/patrickmn/go-cache"
 )
 
-var port = flag.Int("port", 1234, "server port")
 var clientTable *cache.Cache
 
 // Init initializes the server with necessary dependencies.
@@ -30,9 +30,9 @@ func Register(rcvr vrrpc.VrgoService) error {
 // Serve starts an HTTP server to handle RPC requests.
 func Serve() {
 	rpc.HandleHTTP()
-	l, err := net.Listen("tcp", fmt.Sprintf(":%v", *port))
+	l, err := net.Listen("tcp", fmt.Sprintf(":%v", *flags.Port))
 	if err != nil {
-		log.Fatalf("failed to listen on port %v: %v", *port, err)
+		log.Fatalf("failed to listen on port %v: %v", *flags.Port, err)
 	}
 	http.Serve(l, nil)
 }
