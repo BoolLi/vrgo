@@ -64,6 +64,9 @@ func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
 	opRequestLog = opLog
 	clientTable = t
 
+	RegisterRPC(new(VrgoRPC))
+	go ServeHTTP()
+
 	// TODO: Connect to multiple backups instead of just one.
 	p := ports[0]
 	var err error

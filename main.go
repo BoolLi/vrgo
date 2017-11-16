@@ -11,7 +11,6 @@ import (
 	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/primary"
-	"github.com/BoolLi/vrgo/server"
 	"github.com/BoolLi/vrgo/table"
 
 	cache "github.com/patrickmn/go-cache"
@@ -23,15 +22,7 @@ func main() {
 
 	switch *flags.Mode {
 	case "server":
-		// Create server.
 		clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
-		if err := server.Init(clientTable); err != nil {
-			log.Fatalf("failed to initialize server: %v", err)
-		}
-		server.Register(new(server.VrgoRPC))
-		go server.Serve()
-
-		// Create primary.
 		if err := primary.Init(oplog.New(), clientTable); err != nil {
 			log.Fatalf("failed to initialize primary: %v", err)
 		}

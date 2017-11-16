@@ -1,10 +1,9 @@
-package server
+package primary
 
 import (
 	"log"
 	"strconv"
 
-	"github.com/BoolLi/vrgo/primary"
 	"github.com/BoolLi/vrgo/rpc"
 )
 
@@ -27,7 +26,7 @@ func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
 		log.Printf("first time receiving request %v from client %v\n", req.RequestNum, req.ClientId)
 	}
 
-	ch := primary.ProcessIncomingReq(req)
+	ch := ProcessIncomingReq(req)
 	select {
 	case _ = <-ch:
 		log.Println("done processing request")
