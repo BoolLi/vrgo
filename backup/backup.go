@@ -21,49 +21,91 @@ var opRequestLog *oplog.OpRequestLog
 var opNum int
 var clientTable *cache.Cache
 var viewNum int
+var incomingPrepareSize = 5
+var incomingPrepares chan PrimaryPrepare
 var incomingCommit chan int // TODO: change to type CommitRequest when defined
 
 // BackupReply defines the basic RPCs exported by server.
 type BackupReply int
 
-// Echo returns the exact same message sent by the caller.
-func (r *BackupReply) Prepare(args *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk) error {
-	log.Printf("got prepare message from primary: %v", *args)
+// PrimaryPrepare represents the in-memory state of a primary prepare message.
+type PrimaryPrepare struct {
+	PrepareArgs vrrpc.PrepareArgs
+	done    chan vrrpc.PrepareOk
+}
 
-	_, lastOp, _ := opRequestLog.ReadLast()
+// Prepare responds to primary with a PrepareOk message if criteria is met
+func (r *BackupReply) Prepare(prepare *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk) error {
+	log.Printf("got prepare message from primary: %v", *prepare)
 
-	// Backup should block if it does not have op for all earlier requests in its log.
-	if args.OpNum > (lastOp + 1) {
-		// Channel that listens for update from Commit Service
-		incomingCommit = make(chan int)
-		_ = <- incomingCommit
-		log.Print("received a commit from commit service")
-	}
-	// 1. Increment op number
-	opNum += 1
-	// 2. Add request to end of log
-	if err := opRequestLog.AppendRequest(&args.Request, opNum); err != nil {
-		// TODO: Add logic when appending to log fails.
-		log.Fatalf("could not write to op request log: %v", err)
-	}
-
-	// 3. Update client table
-	clientTable.Set(strconv.Itoa(args.Request.ClientId),
-		vrrpc.Response{
-			ViewNum:    viewNum,
-			RequestNum: args.Request.RequestNum,
-			OpResult:   vrrpc.OperationResult{},
-		}, cache.NoExpiration)
-	log.Printf("clientTable adding %v at viewNum %v", args.Request, viewNum)
-
-	// 4. Send PrepareOk message to primary
-	*resp = vrrpc.PrepareOk{
-		ViewNum:	viewNum,
-		OpNum:		opNum,
-		Id:				333, // TODO: fetch Id
+	ch := AddIncomingPrepare(prepare)
+	select {
+	case r := <- ch:
+		log.Println("backup done processing prepare")
+		*resp = r
 	}
 
 	return nil
+}
+
+func ProcessIncomingPrepares() {
+	for {
+		var primaryPrepare PrimaryPrepare
+		select {
+		case primaryPrepare = <-incomingPrepares:
+			log.Printf("consuming prepare %v from primary", primaryPrepare.PrepareArgs)
+		}
+
+		// The Request encapsulated in the prepare message.
+		prepareRequest := primaryPrepare.PrepareArgs.Request
+
+		_, lastOp, _ := opRequestLog.ReadLast()
+
+		// Backup should block if it does not have op for all earlier requests in its log.
+		if primaryPrepare.PrepareArgs.OpNum > (lastOp + 1) {
+			// Channel that listens for update from Commit Service
+			incomingCommit = make(chan int)
+			_ = <- incomingCommit
+			log.Print("received a commit from commit service")
+		}
+		// 1. Increment op number
+		opNum += 1
+		// 2. Add request to end of log
+		if err := opRequestLog.AppendRequest(&prepareRequest, opNum); err != nil {
+			// TODO: Add logic when appending to log fails.
+			log.Fatalf("could not write to op request log: %v", err)
+		}
+
+		// 3. Update client table
+		clientTable.Set(strconv.Itoa(prepareRequest.ClientId),
+			vrrpc.Response{
+				ViewNum:    viewNum,
+				RequestNum: prepareRequest.RequestNum,
+				OpResult:   vrrpc.OperationResult{},
+			}, cache.NoExpiration)
+		log.Printf("clientTable adding %v at viewNum %v", prepareRequest, viewNum)
+
+		// 4. Send PrepareOk message to channel for primary
+		resp := vrrpc.PrepareOk{
+			ViewNum:	viewNum,
+			OpNum:		opNum,
+			Id:				*flags.Id,
+		}
+		log.Printf("backup %v sending PrepareOk %v to primary", *flags.Id, resp)
+
+		primaryPrepare.done <- resp
+	}
+}
+
+// AddIncomingPrepare adds a vrrpc.PrepareArgs to incomingPrepares queue.
+func AddIncomingPrepare(prepare *vrrpc.PrepareArgs) chan vrrpc.PrepareOk {
+	ch := make(chan vrrpc.PrepareOk)
+	r := PrimaryPrepare {
+		PrepareArgs: * prepare,
+		done: ch,
+	}
+	incomingPrepares <- r
+	return ch
 }
 
 // Register registers a RPC receiver.
@@ -84,6 +126,10 @@ func Serve() {
 func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
 	opRequestLog = opLog
 	clientTable = t
+	incomingPrepares = make(chan PrimaryPrepare, incomingPrepareSize)
+
+	go ProcessIncomingPrepares()
+
 	return nil
 }
 

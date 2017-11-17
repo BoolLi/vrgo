@@ -1,5 +1,4 @@
-// server defines an HTTP RPC server.
-package server
+package primary
 
 import (
 	"fmt"
@@ -11,24 +10,15 @@ import (
 	"github.com/BoolLi/vrgo/flags"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
-	cache "github.com/patrickmn/go-cache"
 )
 
-var clientTable *cache.Cache
-
-// Init initializes the server with necessary dependencies.
-func Init(t *cache.Cache) error {
-	clientTable = t
-	return nil
-}
-
 // Register registers a RPC receiver.
-func Register(rcvr vrrpc.VrgoService) error {
+func RegisterRPC(rcvr vrrpc.VrgoService) error {
 	return rpc.Register(rcvr)
 }
 
 // Serve starts an HTTP server to handle RPC requests.
-func Serve() {
+func ServeHTTP() {
 	rpc.HandleHTTP()
 	l, err := net.Listen("tcp", fmt.Sprintf(":%v", *flags.Port))
 	if err != nil {

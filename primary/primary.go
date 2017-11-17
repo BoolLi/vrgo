@@ -8,7 +8,6 @@ import (
 	"net/rpc"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/BoolLi/vrgo/oplog"
 
@@ -56,7 +55,7 @@ var clientTable *cache.Cache
 var viewNum int
 
 // TODO: Keep track of the clients dynamically.
-var client *rpc.Client
+var clients []*rpc.Client
 
 // Init initializes data structures needed for the primary.
 func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
@@ -64,66 +63,88 @@ func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
 	opRequestLog = opLog
 	clientTable = t
 
+	RegisterRPC(new(VrgoRPC))
+	go ServeHTTP()
+
 	// TODO: Connect to multiple backups instead of just one.
-	p := ports[0]
-	var err error
-	client, err = rpc.DialHTTP("tcp", fmt.Sprintf("localhost:%v", p))
-	if err != nil {
-		log.Fatal(fmt.Sprintf("failed to connect to client %v: ", p), err)
+	for _, p := range ports {
+		var err error
+		c, err := rpc.DialHTTP("tcp", fmt.Sprintf("localhost:%v", p))
+		if err != nil {
+			log.Fatal(fmt.Sprintf("failed to connect to client %v: ", p), err)
+		}
+		clients = append(clients, c)
 	}
+
+	go ProcessIncomingReqs()
 
 	return nil
 }
 
-func ProcessIncomingReq(req *vrrpc.Request) chan int {
-	// 1. Add request to incoming queue.
-	ch := AddIncomingReq(req)
-	// 2. Advance op num.
-	opNum += 1
+// ProcessIncomingReqs takes requests from incomingReqs queue and processes them.
+// Note: This function is going to be the bottleneck because it has to block for each request.
+// It cannot delegate waiting for backup replies to other threads, because later requests from the same client
+// can reset clientTable while previous ones are still on the fly.
+// The best solution is to create a per-client incoming request queue. This ensures linearizability.
+func ProcessIncomingReqs() {
+	for {
+		// 1. Take a request from the incoming request queue.
+		var clientReq ClientRequest
+		select {
+		case clientReq = <-incomingReqs:
+			log.Printf("consuming request %v", clientReq.Request)
+		}
 
-	// 3. Append request to op log.
-	if err := opRequestLog.AppendRequest(req, opNum); err != nil {
-		// TODO: Add logic when appending to log fails.
-		log.Fatalf("could not write to op request log: %v", err)
+		// 2. Advance op num.
+		opNum += 1
+
+		// 3. Append request to op log.
+		if err := opRequestLog.AppendRequest(&clientReq.Request, opNum); err != nil {
+			log.Fatalf("could not write %v to op request log: %v", err)
+		}
+
+		// 4. Update client table.
+		clientTable.Set(strconv.Itoa(clientReq.Request.ClientId),
+			vrrpc.Response{
+				ViewNum:    viewNum,
+				RequestNum: clientReq.Request.RequestNum,
+				OpResult:   vrrpc.OperationResult{},
+			}, cache.NoExpiration)
+		log.Printf("clientTable adding %v at viewNum %v", clientReq.Request, viewNum)
+
+		// 5. Send Prepare messages.
+		args := vrrpc.PrepareArgs{
+			ViewNum:   viewNum,
+			Request:   clientReq.Request,
+			OpNum:     opNum,
+			CommitNum: 0,
+		}
+
+		quorumChan := make(chan bool)
+		quorum := len(clients)/2 + 1
+		for _, c := range clients {
+			go func() {
+				var reply vrrpc.PrepareOk
+				err := c.Call("BackupReply.Prepare", args, &reply)
+				if err != nil {
+					log.Printf("got error from client: %v", err)
+					return
+				}
+				log.Printf("got reply from client: %v", reply)
+				quorumChan <- true
+			}()
+		}
+		// TODO: If we don't get quorum-1 good replies, we will get stuck.
+		for i := 0; i < quorum; i++ {
+			<-quorumChan
+		}
+		log.Printf("got %v replies from clients; marking request as done", quorum)
+
+		clientReq.done <- 1
 	}
-
-	// 4. Update client table.
-	clientTable.Set(strconv.Itoa(req.ClientId),
-		vrrpc.Response{
-			ViewNum:    viewNum,
-			RequestNum: req.RequestNum,
-			OpResult:   vrrpc.OperationResult{},
-		}, cache.NoExpiration)
-	log.Printf("clientTable adding %v at viewNum %v", req, viewNum)
-
-	// 5. Send Prepare messages.
-	args := vrrpc.PrepareArgs{
-		ViewNum:   viewNum,
-		Request:   *req,
-		OpNum:     opNum,
-		CommitNum: 0,
-	}
-	var reply vrrpc.PrepareOk
-	// TODO: primary should send to all backups and wait for f replies.
-	err := client.Call("BackupReply.Prepare", args, &reply)
-	if err != nil {
-		log.Fatal("backup reply error:", err)
-	}
-	log.Printf("got reply from client: %v", reply)
-	
-	// TODO: Intead of calling this, we should wait for f replies on a separate thread.
-	// Wait for f PrepareOk messages before
-	// 1. Make sure all earlier operations are executed
-	// 2. Execute current operation by making up call to service code
-	// 3. Increment commit number
-	// 4. Respond to client
-	// 5. Update client's entry in client table to contain result
-	go DummyConsumeIncomingReq()
-
-	return ch
 }
 
-// AddIncomingReq adds a vrrpc.Request to the primary to process.
+// AddIncomingReq adds a vrrpc.Request to incomingReqs queue.
 func AddIncomingReq(req *vrrpc.Request) chan int {
 	ch := make(chan int)
 	r := ClientRequest{
@@ -132,13 +153,4 @@ func AddIncomingReq(req *vrrpc.Request) chan int {
 	}
 	incomingReqs <- r
 	return ch
-}
-
-func DummyConsumeIncomingReq() {
-	time.Sleep(10 * time.Second)
-	select {
-	case r := <-incomingReqs:
-		log.Printf("cosuming request %v", r.Request)
-		r.done <- 1
-	}
 }
