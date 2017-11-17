@@ -93,7 +93,7 @@ func ProcessIncomingReqs() {
 		var clientReq ClientRequest
 		select {
 		case clientReq = <-incomingReqs:
-			log.Printf("consuming request %v", clientReq.Request)
+			log.Printf("consuming request %+v\n", clientReq.Request)
 		}
 
 		// 2. Advance op num.
@@ -111,14 +111,14 @@ func ProcessIncomingReqs() {
 				RequestNum: clientReq.Request.RequestNum,
 				OpResult:   vrrpc.OperationResult{},
 			}, cache.NoExpiration)
-		log.Printf("clientTable adding %v at viewNum %v", clientReq.Request, viewNum)
+		log.Printf("clientTable adding %+v at viewNum %v\n", clientReq.Request, viewNum)
 
 		// 5. Send Prepare messages.
 		args := vrrpc.PrepareArgs{
 			ViewNum:   viewNum,
 			Request:   clientReq.Request,
 			OpNum:     opNum,
-			CommitNum: 0,
+			CommitNum: commitNum,
 		}
 
 		// 6. Wait for f PrepareOks from clients.
@@ -132,7 +132,7 @@ func ProcessIncomingReqs() {
 					log.Printf("got error from client: %v", err)
 					return
 				}
-				log.Printf("got reply from client: %v", reply)
+				log.Printf("got reply from client: %+v\n", reply)
 				quorumChan <- true
 			}()
 		}

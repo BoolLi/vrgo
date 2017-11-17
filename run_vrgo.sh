@@ -6,6 +6,8 @@ backups=( "2","9000" "3","9001" "4","9002")
 
 client_cmd="$GOPATH/bin/vrgo --mode=client --port=1234"
 
+go install ./...
+
 for element in ${backups[@]}; do
 	IFS=',' read id port <<< "${element}"
 	eval "${backup_cmd}  --port=${port} --id=${id}> $GOPATH/bin/backup${id}-${port}.log&"

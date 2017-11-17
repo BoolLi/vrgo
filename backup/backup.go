@@ -31,16 +31,16 @@ type BackupReply int
 // PrimaryPrepare represents the in-memory state of a primary prepare message.
 type PrimaryPrepare struct {
 	PrepareArgs vrrpc.PrepareArgs
-	done    chan vrrpc.PrepareOk
+	done        chan vrrpc.PrepareOk
 }
 
 // Prepare responds to primary with a PrepareOk message if criteria is met
 func (r *BackupReply) Prepare(prepare *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk) error {
-	log.Printf("got prepare message from primary: %v", *prepare)
+	log.Printf("got prepare message from primary: %+v\n", *prepare)
 
 	ch := AddIncomingPrepare(prepare)
 	select {
-	case r := <- ch:
+	case r := <-ch:
 		log.Println("backup done processing prepare")
 		*resp = r
 	}
@@ -53,8 +53,10 @@ func ProcessIncomingPrepares() {
 		var primaryPrepare PrimaryPrepare
 		select {
 		case primaryPrepare = <-incomingPrepares:
-			log.Printf("consuming prepare %v from primary", primaryPrepare.PrepareArgs)
+			log.Printf("consuming prepare %+v from primary\n", primaryPrepare.PrepareArgs)
 		}
+
+		// TODO: Take the commitNum from the request or from the commit message; send it over to commit service.
 
 		// The Request encapsulated in the prepare message.
 		prepareRequest := primaryPrepare.PrepareArgs.Request
@@ -65,7 +67,7 @@ func ProcessIncomingPrepares() {
 		if primaryPrepare.PrepareArgs.OpNum > (lastOp + 1) {
 			// Channel that listens for update from Commit Service
 			incomingCommit = make(chan int)
-			_ = <- incomingCommit
+			_ = <-incomingCommit
 			log.Print("received a commit from commit service")
 		}
 		// 1. Increment op number
@@ -83,15 +85,15 @@ func ProcessIncomingPrepares() {
 				RequestNum: prepareRequest.RequestNum,
 				OpResult:   vrrpc.OperationResult{},
 			}, cache.NoExpiration)
-		log.Printf("clientTable adding %v at viewNum %v", prepareRequest, viewNum)
+		log.Printf("clientTable adding %+v at viewNum %v\n", prepareRequest, viewNum)
 
 		// 4. Send PrepareOk message to channel for primary
 		resp := vrrpc.PrepareOk{
-			ViewNum:	viewNum,
-			OpNum:		opNum,
-			Id:				*flags.Id,
+			ViewNum: viewNum,
+			OpNum:   opNum,
+			Id:      *flags.Id,
 		}
-		log.Printf("backup %v sending PrepareOk %v to primary", *flags.Id, resp)
+		log.Printf("backup %v sending PrepareOk %+v to primary\n", *flags.Id, resp)
 
 		primaryPrepare.done <- resp
 	}
@@ -100,9 +102,9 @@ func ProcessIncomingPrepares() {
 // AddIncomingPrepare adds a vrrpc.PrepareArgs to incomingPrepares queue.
 func AddIncomingPrepare(prepare *vrrpc.PrepareArgs) chan vrrpc.PrepareOk {
 	ch := make(chan vrrpc.PrepareOk)
-	r := PrimaryPrepare {
-		PrepareArgs: * prepare,
-		done: ch,
+	r := PrimaryPrepare{
+		PrepareArgs: *prepare,
+		done:        ch,
 	}
 	incomingPrepares <- r
 	return ch
@@ -133,7 +135,7 @@ func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
 	return nil
 }
 
-func DummyCommitService(){
+func DummyCommitService() {
 	time.Sleep(10 * time.Second)
 	incomingCommit <- 1
 	log.Print("committing some dummy request")

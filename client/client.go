@@ -48,5 +48,5 @@ func RunClient() {
 
 func printResp(call *rpc.Call) {
 	resp := <-call.Done
-	fmt.Printf("Vrgo response: %v\n", resp)
+	fmt.Printf("Vrgo response: %v\n", resp.Reply.(*vrrpc.Response).OpResult.Message)
 }
