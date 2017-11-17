@@ -12,9 +12,15 @@ type PrepareArgs struct {
 	CommitNum int
 }
 
-// PrepareOk is the output type of Echo.
+// PrepareOk is the output type of Prepare.
 type PrepareOk struct {
 	ViewNum    int
-	RequestNum int
-	Result     string
+	OpNum      int
+	Id         int
+}
+
+// Commit is sent by primary if no new Prepare message is being sent
+type Commit struct {
+  ViewNum   int
+  CommitNum int
 }

@@ -26,6 +26,12 @@ func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
 		log.Printf("first time receiving request %v from client %v\n", req.RequestNum, req.ClientId)
 	}
 
+	// Wait for f PrepareOk messages before
+	// 1. Make sure all earlier operations are executed
+	// 2. Execute current operation by making up call to service code
+	// 3. Increment commit number
+	// 4. Responding to client
+	// 5. Updating client's entry in client table to contain result
 	ch := AddIncomingReq(req)
 	select {
 	case res := <-ch:
