@@ -2,6 +2,7 @@
 package oplog
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -25,7 +26,7 @@ func New() *OpRequestLog {
 }
 
 // AppendRequest appends a request along with its opNum to the log.
-func (o *OpRequestLog) AppendRequest(request *rpc.Request, opNum int) error {
+func (o *OpRequestLog) AppendRequest(ctx context.Context, request *rpc.Request, opNum int) error {
 	log.Printf("oplog adding %v at opNum %v", request, opNum)
 	r := OpRequest{Request: *request, OpNum: opNum}
 	o.Requests = append(o.Requests, r)
@@ -33,7 +34,7 @@ func (o *OpRequestLog) AppendRequest(request *rpc.Request, opNum int) error {
 }
 
 // ReadLast returns the last request from the log or an error if the log is empty.
-func (o *OpRequestLog) ReadLast() (*rpc.Request, int, error) {
+func (o *OpRequestLog) ReadLast(ctx context.Context) (*rpc.Request, int, error) {
 	if len(o.Requests) == 0 {
 		return nil, 0, fmt.Errorf("OpRequestLog is empty")
 	}

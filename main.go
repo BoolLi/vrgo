@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -20,10 +21,12 @@ func main() {
 	flag.Parse()
 	log.SetOutput(os.Stdout)
 
+	// TODO: Make a cancellable context.
+	ctx := context.Background()
 	switch *flags.Mode {
 	case "server":
 		clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
-		if err := primary.Init(oplog.New(), clientTable); err != nil {
+		if err := primary.Init(ctx, oplog.New(), clientTable); err != nil {
 			log.Fatalf("failed to initialize primary: %v", err)
 		}
 		for {
@@ -32,7 +35,7 @@ func main() {
 		client.RunClient()
 	case "backup":
 		clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
-		if err := backup.Init(oplog.New(), clientTable); err != nil {
+		if err := backup.Init(ctx, oplog.New(), clientTable); err != nil {
 			log.Fatalf("failed to initialize primary: %v", err)
 		}
 		backup.Register(new(backup.BackupReply))

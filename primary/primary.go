@@ -2,6 +2,7 @@
 package primary
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -59,7 +60,7 @@ var (
 )
 
 // Init initializes data structures needed for the primary.
-func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
+func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *cache.Cache) error {
 	incomingReqs = make(chan ClientRequest, incomingReqsSize)
 	opRequestLog = opLog
 	clientTable = t
@@ -77,7 +78,7 @@ func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
 		clients = append(clients, c)
 	}
 
-	go ProcessIncomingReqs()
+	go ProcessIncomingReqs(ctx)
 
 	return nil
 }
@@ -87,20 +88,23 @@ func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
 // It cannot delegate waiting for backup replies to other threads, because later requests from the same client
 // can reset clientTable while previous ones are still on the fly.
 // The best solution is to create a per-client incoming request queue. This ensures linearizability.
-func ProcessIncomingReqs() {
+func ProcessIncomingReqs(ctx context.Context) {
 	for {
 		// 1. Take a request from the incoming request queue.
 		var clientReq ClientRequest
 		select {
 		case clientReq = <-incomingReqs:
 			log.Printf("consuming request %+v\n", clientReq.Request)
+		case <-ctx.Done():
+			log.Printf("primary context cancelled when waiting for incoming requests: %+v", ctx.Err())
+			return
 		}
 
 		// 2. Advance op num.
 		opNum += 1
 
 		// 3. Append request to op log.
-		if err := opRequestLog.AppendRequest(&clientReq.Request, opNum); err != nil {
+		if err := opRequestLog.AppendRequest(ctx, &clientReq.Request, opNum); err != nil {
 			log.Fatalf("could not write %v to op request log: %v", err)
 		}
 
@@ -136,11 +140,24 @@ func ProcessIncomingReqs() {
 				quorumChan <- true
 			}()
 		}
-		// TODO: If we don't get quorum-1 good replies, we will get stuck.
-		for i := 0; i < quorum; i++ {
-			<-quorumChan
+		quorumReadyChan := make(chan int)
+
+		// Block when either of the following cases happens first:
+		// 1. Primary gets f replies from backups.
+		// 2. Primary's context gets cancelled.
+		go func() {
+			for i := 0; i < quorum; i++ {
+				<-quorumChan
+			}
+			quorumReadyChan <- 1
+		}()
+		select {
+		case _ = <-quorumReadyChan:
+			log.Printf("got %v replies from clients; marking request as done", quorum)
+		case <-ctx.Done():
+			log.Printf("primary context cancelled when waiting for %v replies from backups: %+v", quorum, ctx.Err())
+			return
 		}
-		log.Printf("got %v replies from clients; marking request as done", quorum)
 
 		// 7. Exeucte the request.
 		log.Printf("executing %v", clientReq.Request.Op.Message)

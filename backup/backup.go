@@ -2,6 +2,7 @@
 package backup
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -48,7 +49,7 @@ func (r *BackupReply) Prepare(prepare *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk)
 	return nil
 }
 
-func ProcessIncomingPrepares() {
+func ProcessIncomingPrepares(ctx context.Context) {
 	for {
 		var primaryPrepare PrimaryPrepare
 		select {
@@ -61,7 +62,7 @@ func ProcessIncomingPrepares() {
 		// The Request encapsulated in the prepare message.
 		prepareRequest := primaryPrepare.PrepareArgs.Request
 
-		_, lastOp, _ := opRequestLog.ReadLast()
+		_, lastOp, _ := opRequestLog.ReadLast(ctx)
 
 		// Backup should block if it does not have op for all earlier requests in its log.
 		if primaryPrepare.PrepareArgs.OpNum > (lastOp + 1) {
@@ -73,7 +74,7 @@ func ProcessIncomingPrepares() {
 		// 1. Increment op number
 		opNum += 1
 		// 2. Add request to end of log
-		if err := opRequestLog.AppendRequest(&prepareRequest, opNum); err != nil {
+		if err := opRequestLog.AppendRequest(ctx, &prepareRequest, opNum); err != nil {
 			// TODO: Add logic when appending to log fails.
 			log.Fatalf("could not write to op request log: %v", err)
 		}
@@ -125,12 +126,12 @@ func Serve() {
 	http.Serve(l, nil)
 }
 
-func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
+func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *cache.Cache) error {
 	opRequestLog = opLog
 	clientTable = t
 	incomingPrepares = make(chan PrimaryPrepare, incomingPrepareSize)
 
-	go ProcessIncomingPrepares()
+	go ProcessIncomingPrepares(ctx)
 
 	return nil
 }
