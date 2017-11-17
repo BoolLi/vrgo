@@ -68,7 +68,6 @@ func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *cache.Cache) error 
 	RegisterRPC(new(VrgoRPC))
 	go ServeHTTP()
 
-	// TODO: Connect to multiple backups instead of just one.
 	for _, p := range ports {
 		var err error
 		c, err := rpc.DialHTTP("tcp", fmt.Sprintf("localhost:%v", p))
@@ -129,7 +128,7 @@ func ProcessIncomingReqs(ctx context.Context) {
 		quorumChan := make(chan bool)
 		quorum := len(clients)/2 + 1
 		for _, c := range clients {
-			go func() {
+			go func(c *rpc.Client) {
 				var reply vrrpc.PrepareOk
 				err := c.Call("BackupReply.Prepare", args, &reply)
 				if err != nil {
@@ -138,7 +137,7 @@ func ProcessIncomingReqs(ctx context.Context) {
 				}
 				log.Printf("got reply from client: %+v\n", reply)
 				quorumChan <- true
-			}()
+			}(c)
 		}
 		quorumReadyChan := make(chan int)
 
