@@ -28,9 +28,9 @@ func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
 
 	ch := AddIncomingReq(req)
 	select {
-	case _ = <-ch:
-		log.Println("done processing request")
-		*resp = rpc.Response{}
+	case res := <-ch:
+		log.Printf("done processing request; got result %v\n", res.OpResult.Message)
+		*resp = *res
 	}
 
 	return nil

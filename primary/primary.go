@@ -43,19 +43,20 @@ func init() {
 // ClientRequest represents the in-memory state of a client request in the primary.
 type ClientRequest struct {
 	Request vrrpc.Request
-	done    chan int
+	done    chan *vrrpc.Response
 }
 
 const incomingReqsSize = 5
 
-var incomingReqs chan ClientRequest
-var opRequestLog *oplog.OpRequestLog
-var opNum int
-var clientTable *cache.Cache
-var viewNum int
-
-// TODO: Keep track of the clients dynamically.
-var clients []*rpc.Client
+var (
+	incomingReqs chan ClientRequest
+	opRequestLog *oplog.OpRequestLog
+	opNum        int
+	clientTable  *cache.Cache
+	viewNum      int
+	commitNum    int
+	clients      []*rpc.Client
+)
 
 // Init initializes data structures needed for the primary.
 func Init(opLog *oplog.OpRequestLog, t *cache.Cache) error {
@@ -120,6 +121,7 @@ func ProcessIncomingReqs() {
 			CommitNum: 0,
 		}
 
+		// 6. Wait for f PrepareOks from clients.
 		quorumChan := make(chan bool)
 		quorum := len(clients)/2 + 1
 		for _, c := range clients {
@@ -140,13 +142,24 @@ func ProcessIncomingReqs() {
 		}
 		log.Printf("got %v replies from clients; marking request as done", quorum)
 
-		clientReq.done <- 1
+		// 7. Exeucte the request.
+		log.Printf("executing %v", clientReq.Request.Op.Message)
+
+		// 8. Increment the commit number.
+		commitNum += 1
+
+		// 9. Send reply back to client by pushing the reply to the channel.
+		clientReq.done <- &vrrpc.Response{
+			ViewNum:    viewNum,
+			RequestNum: clientReq.Request.RequestNum,
+			OpResult:   vrrpc.OperationResult{Message: clientReq.Request.Op.Message},
+		}
 	}
 }
 
 // AddIncomingReq adds a vrrpc.Request to incomingReqs queue.
-func AddIncomingReq(req *vrrpc.Request) chan int {
-	ch := make(chan int)
+func AddIncomingReq(req *vrrpc.Request) chan *vrrpc.Response {
+	ch := make(chan *vrrpc.Response)
 	r := ClientRequest{
 		Request: *req,
 		done:    ch,
