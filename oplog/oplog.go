@@ -43,3 +43,8 @@ func (o *OpRequestLog) ReadLast(ctx context.Context) (*rpc.Request, int, error) 
 
 	return &r.Request, r.OpNum, nil
 }
+
+// Undo removes the last record from the log.
+func (o *OpRequestLog) Undo(ctx context.Context) {
+	o.Requests = o.Requests[:len(o.Requests)-1]
+}

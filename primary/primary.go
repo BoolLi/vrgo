@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/BoolLi/vrgo/oplog"
+	"github.com/BoolLi/vrgo/table"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
-	cache "github.com/patrickmn/go-cache"
 )
 
 type clientPorts []int
@@ -53,14 +53,14 @@ var (
 	incomingReqs chan ClientRequest
 	opRequestLog *oplog.OpRequestLog
 	opNum        int
-	clientTable  *cache.Cache
+	clientTable  *table.ClientTable
 	viewNum      int
 	commitNum    int
 	clients      []*rpc.Client
 )
 
 // Init initializes data structures needed for the primary.
-func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *cache.Cache) error {
+func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable) error {
 	incomingReqs = make(chan ClientRequest, incomingReqsSize)
 	opRequestLog = opLog
 	clientTable = t
@@ -113,7 +113,7 @@ func ProcessIncomingReqs(ctx context.Context) {
 				ViewNum:    viewNum,
 				RequestNum: clientReq.Request.RequestNum,
 				OpResult:   vrrpc.OperationResult{},
-			}, cache.NoExpiration)
+			})
 		log.Printf("clientTable adding %+v at viewNum %v\n", clientReq.Request, viewNum)
 
 		// 5. Send Prepare messages.
@@ -155,8 +155,14 @@ func ProcessIncomingReqs(ctx context.Context) {
 			log.Printf("got %v replies from clients; marking request as done", quorum)
 		case <-ctx.Done():
 			log.Printf("primary context cancelled when waiting for %v replies from backups: %+v", quorum, ctx.Err())
+			// Undo current operation.
+			opNum -= 1
+			opRequestLog.Undo()
+			clientTable.Undo(strconv.Itoa(clientReq.Request.ClientId))
 			return
 		}
+
+		// Now we consider operation commmited.
 
 		// 7. Exeucte the request.
 		log.Printf("executing %v", clientReq.Request.Op.Message)

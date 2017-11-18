@@ -13,14 +13,14 @@ import (
 
 	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/oplog"
+	"github.com/BoolLi/vrgo/table"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
-	cache "github.com/patrickmn/go-cache"
 )
 
 var opRequestLog *oplog.OpRequestLog
 var opNum int
-var clientTable *cache.Cache
+var clientTable *table.ClientTable
 var viewNum int
 var incomingPrepareSize = 5
 var incomingPrepares chan PrimaryPrepare
@@ -55,7 +55,7 @@ func ProcessIncomingPrepares(ctx context.Context) {
 		select {
 		case primaryPrepare = <-incomingPrepares:
 			log.Printf("consuming prepare %+v from primary\n", primaryPrepare.PrepareArgs)
-		case <- ctx.Done():
+		case <-ctx.Done():
 			log.Printf("backup context cancelled when waiting for incoming prepares: %+v", ctx.Err())
 			return
 		}
@@ -88,7 +88,7 @@ func ProcessIncomingPrepares(ctx context.Context) {
 				ViewNum:    viewNum,
 				RequestNum: prepareRequest.RequestNum,
 				OpResult:   vrrpc.OperationResult{},
-			}, cache.NoExpiration)
+			})
 		log.Printf("clientTable adding %+v at viewNum %v\n", prepareRequest, viewNum)
 
 		// 4. Send PrepareOk message to channel for primary
@@ -129,7 +129,7 @@ func Serve() {
 	http.Serve(l, nil)
 }
 
-func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *cache.Cache) error {
+func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable) error {
 	opRequestLog = opLog
 	clientTable = t
 	incomingPrepares = make(chan PrimaryPrepare, incomingPrepareSize)
