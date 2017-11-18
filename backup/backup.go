@@ -55,6 +55,9 @@ func ProcessIncomingPrepares(ctx context.Context) {
 		select {
 		case primaryPrepare = <-incomingPrepares:
 			log.Printf("consuming prepare %+v from primary\n", primaryPrepare.PrepareArgs)
+		case <- ctx.Done():
+			log.Printf("backup context cancelled when waiting for incoming prepares: %+v", ctx.Err())
+			return
 		}
 
 		// TODO: Take the commitNum from the request or from the commit message; send it over to commit service.
