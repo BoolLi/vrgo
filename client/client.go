@@ -25,6 +25,23 @@ func RunClient() {
 		log.Fatal("dialing:", err)
 	}
 
+	// If we are in automated mode (indicated by negative client id), send
+	// predefined inputs automatically.
+	if *flags.Id < 0 {
+		for _, element := range ClientInput {
+			req := vrrpc.Request{
+				Op: vrrpc.Operation{
+					Message: element,
+				},
+				ClientId:   *flags.Id,
+				RequestNum: *requestNum,
+			}
+			var resp vrrpc.Response
+			_ = client.Go("VrgoRPC.Execute", req, &resp, nil)
+			*requestNum += 1
+		}
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Print("Enter text: \n")
