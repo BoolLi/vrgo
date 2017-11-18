@@ -157,7 +157,7 @@ func ProcessIncomingReqs(ctx context.Context) {
 			log.Printf("primary context cancelled when waiting for %v replies from backups: %+v", quorum, ctx.Err())
 			// Undo current operation.
 			opNum -= 1
-			opRequestLog.Undo()
+			opRequestLog.Undo(ctx)
 			clientTable.Undo(strconv.Itoa(clientReq.Request.ClientId))
 			return
 		}

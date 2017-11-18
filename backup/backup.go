@@ -25,6 +25,7 @@ var viewNum int
 var incomingPrepareSize = 5
 var incomingPrepares chan PrimaryPrepare
 var incomingCommit chan int // TODO: change to type CommitRequest when defined
+var viewTimer *time.Timer
 
 // BackupReply defines the basic RPCs exported by server.
 type BackupReply int
@@ -105,6 +106,8 @@ func ProcessIncomingPrepares(ctx context.Context) {
 
 // AddIncomingPrepare adds a vrrpc.PrepareArgs to incomingPrepares queue.
 func AddIncomingPrepare(prepare *vrrpc.PrepareArgs) chan vrrpc.PrepareOk {
+	// Reset viewTimer.
+	viewTimer.Reset(5 * time.Second)
 	ch := make(chan vrrpc.PrepareOk)
 	r := PrimaryPrepare{
 		PrepareArgs: *prepare,
@@ -129,10 +132,11 @@ func Serve() {
 	http.Serve(l, nil)
 }
 
-func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable) error {
+func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable, vt *time.Timer) error {
 	opRequestLog = opLog
 	clientTable = t
 	incomingPrepares = make(chan PrimaryPrepare, incomingPrepareSize)
+	viewTimer = vt
 
 	go ProcessIncomingPrepares(ctx)
 
