@@ -155,6 +155,10 @@ func ProcessIncomingReqs(ctx context.Context) {
 			log.Printf("got %v replies from clients; marking request as done", quorum)
 		case <-ctx.Done():
 			log.Printf("primary context cancelled when waiting for %v replies from backups: %+v", quorum, ctx.Err())
+			// Undo current operation.
+			opNum -= 1
+			opRequestLog.Undo()
+			clientTable.Undo(strconv.Itoa(clientReq.Request.ClientId))
 			return
 		}
 
