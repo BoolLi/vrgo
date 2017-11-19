@@ -17,8 +17,8 @@ func main() {
 
 	// TODO: Make a cancellable context.
 	switch *flags.Mode {
-	case "server":
-		monitor.StartVrgo("server")
+	case "primary":
+		monitor.StartVrgo("primary")
 	case "backup":
 		monitor.StartVrgo("backup")
 	case "client":

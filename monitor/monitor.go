@@ -16,7 +16,7 @@ import (
 func StartVrgo(entry string) {
 	ctx := context.Background()
 	switch entry {
-	case "server":
+	case "primary":
 		ctxCancel, _ := context.WithCancel(ctx)
 		startPrimary(ctxCancel)
 		for {
