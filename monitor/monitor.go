@@ -13,25 +13,30 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-func StartVrgo(entry string) {
+// Start a VR process as <mode>. Mode can be "primary", "backup", and "viewchange".
+func StartVrgo(mode string) {
 	ctx := context.Background()
-	switch entry {
-	case "primary":
-		ctxCancel, _ := context.WithCancel(ctx)
-		startPrimary(ctxCancel)
-		for {
-		}
-	case "backup":
-		ctxCancel, cancel := context.WithCancel(ctx)
-		vt := time.NewTimer(5 * time.Second)
-		startBackup(ctxCancel, vt)
-		select {
-		case <-vt.C:
-			log.Printf("view timer expires")
-			cancel()
-			// Start change.
-		}
-		for {
+
+	for {
+		switch mode {
+		case "primary":
+			ctxCancel, _ := context.WithCancel(ctx)
+			startPrimary(ctxCancel)
+			for {
+			}
+		case "backup":
+			ctxCancel, cancel := context.WithCancel(ctx)
+			vt := time.NewTimer(5 * time.Second)
+			startBackup(ctxCancel, vt)
+			select {
+			case <-vt.C:
+				// TODO: Think about how to stop backup from handling BackupService.
+				log.Printf("view timer expires")
+				cancel()
+				// Start change.
+			}
+			for {
+			}
 		}
 	}
 }
