@@ -46,8 +46,6 @@ func startPrimary(ctx context.Context) {
 func startBackup(ctx context.Context, vt *time.Timer) {
 	clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
 	if err := backup.Init(ctx, oplog.New(), clientTable, vt); err != nil {
-		log.Fatalf("failed to initialize primary: %v", err)
+		log.Fatalf("failed to initialize backup: %v", err)
 	}
-	backup.Register(new(backup.BackupReply))
-	go backup.Serve()
 }

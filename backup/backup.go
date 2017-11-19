@@ -123,7 +123,7 @@ func Register(rcvr vrrpc.BackupService) error {
 }
 
 // Serve starts an HTTP server to handle RPC requests.
-func Serve() {
+func ServeHTTP() {
 	rpc.HandleHTTP()
 	l, err := net.Listen("tcp", fmt.Sprintf(":%v", *flags.Port))
 	if err != nil {
@@ -137,6 +137,9 @@ func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable, 
 	clientTable = t
 	incomingPrepares = make(chan PrimaryPrepare, incomingPrepareSize)
 	viewTimer = vt
+
+	Register(new(BackupReply))
+	go ServeHTTP()
 
 	go ProcessIncomingPrepares(ctx)
 
