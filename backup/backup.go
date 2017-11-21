@@ -12,20 +12,21 @@ import (
 	"time"
 
 	"github.com/BoolLi/vrgo/flags"
+	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/table"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
 
-var opRequestLog *oplog.OpRequestLog
-var opNum int
-var clientTable *table.ClientTable
-var viewNum int
-var incomingPrepareSize = 5
-var incomingPrepares chan PrimaryPrepare
-var incomingCommit chan int // TODO: change to type CommitRequest when defined
-var viewTimer *time.Timer
+var (
+	opRequestLog        *oplog.OpRequestLog
+	clientTable         *table.ClientTable
+	incomingPrepareSize = 5
+	incomingPrepares    chan PrimaryPrepare
+	incomingCommit      chan int // TODO: change to type CommitRequest when defined
+	viewTimer           *time.Timer
+)
 
 // BackupReply defines the basic RPCs exported by server.
 type BackupReply int
@@ -76,9 +77,9 @@ func ProcessIncomingPrepares(ctx context.Context) {
 			log.Print("received a commit from commit service")
 		}
 		// 1. Increment op number
-		opNum += 1
+		globals.OpNum += 1
 		// 2. Add request to end of log
-		if err := opRequestLog.AppendRequest(ctx, &prepareRequest, opNum); err != nil {
+		if err := opRequestLog.AppendRequest(ctx, &prepareRequest, globals.OpNum); err != nil {
 			// TODO: Add logic when appending to log fails.
 			log.Fatalf("could not write to op request log: %v", err)
 		}
@@ -86,16 +87,16 @@ func ProcessIncomingPrepares(ctx context.Context) {
 		// 3. Update client table
 		clientTable.Set(strconv.Itoa(prepareRequest.ClientId),
 			vrrpc.Response{
-				ViewNum:    viewNum,
+				ViewNum:    globals.ViewNum,
 				RequestNum: prepareRequest.RequestNum,
 				OpResult:   vrrpc.OperationResult{},
 			})
-		log.Printf("clientTable adding %+v at viewNum %v\n", prepareRequest, viewNum)
+		log.Printf("clientTable adding %+v at viewNum %v\n", prepareRequest, globals.ViewNum)
 
 		// 4. Send PrepareOk message to channel for primary
 		resp := vrrpc.PrepareOk{
-			ViewNum: viewNum,
-			OpNum:   opNum,
+			ViewNum: globals.ViewNum,
+			OpNum:   globals.OpNum,
 			Id:      *flags.Id,
 		}
 		log.Printf("backup %v sending PrepareOk %+v to primary\n", *flags.Id, resp)
@@ -118,7 +119,7 @@ func AddIncomingPrepare(prepare *vrrpc.PrepareArgs) chan vrrpc.PrepareOk {
 }
 
 // Register registers a RPC receiver.
-func Register(rcvr vrrpc.BackupService) error {
+func Register(rcvr interface{}) error {
 	return rpc.Register(rcvr)
 }
 

@@ -17,17 +17,19 @@ import (
 func StartVrgo(mode string) {
 	ctx := context.Background()
 
+	clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
+	opRequestLog := oplog.New()
 	for {
 		switch mode {
 		case "primary":
 			ctxCancel, _ := context.WithCancel(ctx)
-			startPrimary(ctxCancel)
+			startPrimary(ctxCancel, opRequestLog, clientTable)
 			for {
 			}
 		case "backup":
 			ctxCancel, cancel := context.WithCancel(ctx)
 			vt := time.NewTimer(5 * time.Second)
-			startBackup(ctxCancel, vt)
+			startBackup(ctxCancel, opRequestLog, clientTable, vt)
 			select {
 			case <-vt.C:
 				// TODO: Think about how to stop backup from handling BackupService.
@@ -41,16 +43,14 @@ func StartVrgo(mode string) {
 	}
 }
 
-func startPrimary(ctx context.Context) {
-	clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
-	if err := primary.Init(ctx, oplog.New(), clientTable); err != nil {
+func startPrimary(ctx context.Context, opRequestLog *oplog.OpRequestLog, clientTable *table.ClientTable) {
+	if err := primary.Init(ctx, opRequestLog, clientTable); err != nil {
 		log.Fatalf("failed to initialize primary: %v", err)
 	}
 }
 
-func startBackup(ctx context.Context, vt *time.Timer) {
-	clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
-	if err := backup.Init(ctx, oplog.New(), clientTable, vt); err != nil {
+func startBackup(ctx context.Context, opRequestLog *oplog.OpRequestLog, clientTable *table.ClientTable, vt *time.Timer) {
+	if err := backup.Init(ctx, opRequestLog, clientTable, vt); err != nil {
 		log.Fatalf("failed to initialize backup: %v", err)
 	}
 }

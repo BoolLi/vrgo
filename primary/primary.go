@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/table"
 
@@ -52,10 +53,7 @@ const incomingReqsSize = 5
 var (
 	incomingReqs chan ClientRequest
 	opRequestLog *oplog.OpRequestLog
-	opNum        int
 	clientTable  *table.ClientTable
-	viewNum      int
-	commitNum    int
 	clients      []*rpc.Client
 )
 
@@ -100,28 +98,28 @@ func ProcessIncomingReqs(ctx context.Context) {
 		}
 
 		// 2. Advance op num.
-		opNum += 1
+		globals.OpNum += 1
 
 		// 3. Append request to op log.
-		if err := opRequestLog.AppendRequest(ctx, &clientReq.Request, opNum); err != nil {
+		if err := opRequestLog.AppendRequest(ctx, &clientReq.Request, globals.OpNum); err != nil {
 			log.Fatalf("could not write %v to op request log: %v", err)
 		}
 
 		// 4. Update client table.
 		clientTable.Set(strconv.Itoa(clientReq.Request.ClientId),
 			vrrpc.Response{
-				ViewNum:    viewNum,
+				ViewNum:    globals.ViewNum,
 				RequestNum: clientReq.Request.RequestNum,
 				OpResult:   vrrpc.OperationResult{},
 			})
-		log.Printf("clientTable adding %+v at viewNum %v\n", clientReq.Request, viewNum)
+		log.Printf("clientTable adding %+v at viewNum %v\n", clientReq.Request, globals.ViewNum)
 
 		// 5. Send Prepare messages.
 		args := vrrpc.PrepareArgs{
-			ViewNum:   viewNum,
+			ViewNum:   globals.ViewNum,
 			Request:   clientReq.Request,
-			OpNum:     opNum,
-			CommitNum: commitNum,
+			OpNum:     globals.OpNum,
+			CommitNum: globals.CommitNum,
 		}
 
 		// 6. Wait for f PrepareOks from clients.
@@ -156,7 +154,7 @@ func ProcessIncomingReqs(ctx context.Context) {
 		case <-ctx.Done():
 			log.Printf("primary context cancelled when waiting for %v replies from backups: %+v", quorum, ctx.Err())
 			// Undo current operation.
-			opNum -= 1
+			globals.OpNum -= 1
 			opRequestLog.Undo(ctx)
 			clientTable.Undo(strconv.Itoa(clientReq.Request.ClientId))
 			return
@@ -168,11 +166,11 @@ func ProcessIncomingReqs(ctx context.Context) {
 		log.Printf("executing %v", clientReq.Request.Op.Message)
 
 		// 8. Increment the commit number.
-		commitNum += 1
+		globals.CommitNum += 1
 
 		// 9. Send reply back to client by pushing the reply to the channel.
 		clientReq.done <- &vrrpc.Response{
-			ViewNum:    viewNum,
+			ViewNum:    globals.ViewNum,
 			RequestNum: clientReq.Request.RequestNum,
 			OpResult:   vrrpc.OperationResult{Message: clientReq.Request.Op.Message},
 		}
