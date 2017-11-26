@@ -1,8 +1,8 @@
 #!/bin/bash
-primary_cmd="$GOPATH/bin/vrgo --mode=primary --port=1234 --id=1 --backup_ports=9000 --backup_ports=9001 --backup_ports=9002> $GOPATH/bin/primary.log&"
+primary_cmd="$GOPATH/bin/vrgo --mode=primary --port=1234 --id=0 --backup_ports=9000 --backup_ports=9001 --backup_ports=9002 --backup_ports=9003> $GOPATH/bin/primary.log&"
 
 backup_cmd="$GOPATH/bin/vrgo --mode=backup"
-backups=( "2","9000" "3","9001" "4","9002")
+backups=( "1","9000" "2","9001" "3","9002" "4","9003")
 
 client_cmd="$GOPATH/bin/vrgo --mode=client --port=1234 --id=123"
 

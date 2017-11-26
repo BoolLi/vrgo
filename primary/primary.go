@@ -17,9 +17,9 @@ import (
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
 
-type clientPorts []int
+type backupPorts []int
 
-func (cp *clientPorts) String() string {
+func (cp *backupPorts) String() string {
 	var ps []string
 	for _, p := range *cp {
 		ps = append(ps, fmt.Sprintf("%v", p))
@@ -27,7 +27,7 @@ func (cp *clientPorts) String() string {
 	return strings.Join(ps, ", ")
 }
 
-func (cp *clientPorts) Set(value string) error {
+func (cp *backupPorts) Set(value string) error {
 	p, err := strconv.Atoi(value)
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func (cp *clientPorts) Set(value string) error {
 	return nil
 }
 
-var ports clientPorts
+var ports backupPorts
 
 func init() {
 	flag.Var(&ports, "backup_ports", "backup ports")
@@ -54,7 +54,7 @@ var (
 	incomingReqs chan ClientRequest
 	opRequestLog *oplog.OpRequestLog
 	clientTable  *table.ClientTable
-	clients      []*rpc.Client
+	backups      []*rpc.Client
 )
 
 // Init initializes data structures needed for the primary.
@@ -70,9 +70,9 @@ func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable) 
 		var err error
 		c, err := rpc.DialHTTP("tcp", fmt.Sprintf("localhost:%v", p))
 		if err != nil {
-			log.Fatal(fmt.Sprintf("failed to connect to client %v: ", p), err)
+			log.Fatal(fmt.Sprintf("failed to connect to backup%v: ", p), err)
 		}
-		clients = append(clients, c)
+		backups = append(backups, c)
 	}
 
 	go ProcessIncomingReqs(ctx)
@@ -91,7 +91,7 @@ func ProcessIncomingReqs(ctx context.Context) {
 		var clientReq ClientRequest
 		select {
 		case clientReq = <-incomingReqs:
-			log.Printf("consuming request %+v\n", clientReq.Request)
+			log.Printf("taking new request from incoming queue: %+v\n", clientReq.Request)
 		case <-ctx.Done():
 			log.Printf("primary context cancelled when waiting for incoming requests: %+v", ctx.Err())
 			return
@@ -122,18 +122,18 @@ func ProcessIncomingReqs(ctx context.Context) {
 			CommitNum: globals.CommitNum,
 		}
 
-		// 6. Wait for f PrepareOks from clients.
+		// 6. Wait for f PrepareOks from backups.
 		quorumChan := make(chan bool)
-		quorum := len(clients)/2 + 1
-		for _, c := range clients {
+		subquorum := len(backups) / 2
+		for _, c := range backups {
 			go func(c *rpc.Client) {
 				var reply vrrpc.PrepareOk
 				err := c.Call("BackupReply.Prepare", args, &reply)
 				if err != nil {
-					log.Printf("got error from client: %v", err)
+					log.Printf("got error from backup: %v", err)
 					return
 				}
-				log.Printf("got reply from client: %+v\n", reply)
+				log.Printf("got PrepareOK from backup: %+v\n", reply)
 				quorumChan <- true
 			}(c)
 		}
@@ -143,16 +143,16 @@ func ProcessIncomingReqs(ctx context.Context) {
 		// 1. Primary gets f replies from backups.
 		// 2. Primary's context gets cancelled.
 		go func() {
-			for i := 0; i < quorum; i++ {
+			for i := 0; i < subquorum; i++ {
 				<-quorumChan
 			}
 			quorumReadyChan <- 1
 		}()
 		select {
 		case _ = <-quorumReadyChan:
-			log.Printf("got %v replies from clients; marking request as done", quorum)
+			log.Printf("got %v replies from backups; marking request as done", subquorum)
 		case <-ctx.Done():
-			log.Printf("primary context cancelled when waiting for %v replies from backups: %+v", quorum, ctx.Err())
+			log.Printf("primary context cancelled when waiting for %v replies from backups: %+v", subquorum, ctx.Err())
 			// Undo current operation.
 			globals.OpNum -= 1
 			opRequestLog.Undo(ctx)

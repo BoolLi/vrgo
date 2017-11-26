@@ -10,4 +10,6 @@ var (
 
 	// The current commit number.
 	CommitNum int
+
+	AllPorts = map[int]int{0: 1234, 1: 9000, 2: 9001, 3: 9002}
 )
