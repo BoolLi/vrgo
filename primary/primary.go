@@ -13,6 +13,7 @@ import (
 	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/table"
+	"github.com/BoolLi/vrgo/view"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
@@ -63,7 +64,8 @@ func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable) 
 	opRequestLog = opLog
 	clientTable = t
 
-	RegisterRPC(new(VrgoRPC))
+	RegisterVrgo(new(VrgoRPC))
+	RegisterView(new(view.ViewChangeRPC))
 	go ServeHTTP()
 
 	for _, p := range ports {

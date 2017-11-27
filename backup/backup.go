@@ -15,6 +15,7 @@ import (
 	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/table"
+	"github.com/BoolLi/vrgo/view"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
@@ -140,6 +141,7 @@ func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable, 
 	viewTimer = vt
 
 	Register(new(BackupReply))
+	Register(new(view.ViewChangeRPC))
 	go ServeHTTP()
 
 	go ProcessIncomingPrepares(ctx)

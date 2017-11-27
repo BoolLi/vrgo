@@ -27,6 +27,7 @@ type DoViewChangeArgs struct {
 	LatestNormalViewNum int
 	OpNum               int
 	CommitNum           int
+	Id                  int
 }
 
 // DoViewChangeResp is the response to a DoViewChange message.
