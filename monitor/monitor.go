@@ -7,7 +7,6 @@ import (
 
 	"github.com/BoolLi/vrgo/backup"
 	"github.com/BoolLi/vrgo/flags"
-	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/primary"
 	"github.com/BoolLi/vrgo/table"
@@ -17,6 +16,7 @@ import (
 )
 
 // Start a VR process as <mode>. Mode can be "primary", "backup", and "viewchange".
+// Depending on different conditions, a node can switch between different modes, which is managed by this function.
 func StartVrgo(mode string) {
 	ctx := context.Background()
 
@@ -28,41 +28,32 @@ func StartVrgo(mode string) {
 		case "primary":
 			ctxCancel, cancel := context.WithCancel(ctx)
 			startPrimary(ctxCancel, opRequestLog, clientTable)
+
 			select {
 			case <-view.StartViewChangeChan:
 				cancel()
-				mode = "vc-recv"
+				mode = "viewchange"
 			}
-			//for {
-			//}
 		case "backup":
 			ctxCancel, cancel := context.WithCancel(ctx)
 			vt := time.NewTimer(5 * time.Second)
 			startBackup(ctxCancel, opRequestLog, clientTable, vt)
+
 			select {
 			case <-vt.C:
 				// TODO: Think about how to stop backup from handling BackupService.
 				log.Printf("view timer expires; backup %v starts view change.", *flags.Id)
 				cancel()
-				mode = "vc-init"
+				mode = "viewchange-init"
 			case <-view.StartViewChangeChan:
 				cancel()
-				mode = "vc-recv"
+				mode = "viewchange"
 			}
-			//for {
-			//}
-		case "vc-init":
-			// send SVC to other replicas
-			log.Printf("entered vc-init mode")
-			view.CurrentProposedViewNum.Lock()
-			view.CurrentProposedViewNum.Value = globals.ViewNum + 1
-			view.CurrentProposedViewNum.Unlock()
-			for _, p := range view.AllOtherPorts() {
-				view.SendStartViewChange(p, view.CurrentProposedViewNum.Value, *flags.Id)
-			}
-			mode = "vc-recv"
-		case "vc-recv":
-			log.Printf("entered vc-recv mode")
+		case "viewchange-init":
+			view.InitiateStartViewChange()
+			mode = "viewchange"
+		case "viewchange":
+			log.Printf("entered viewchange mode")
 			select {}
 			// waits until mode is set to "primary" or "backup"
 		}
