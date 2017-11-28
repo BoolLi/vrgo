@@ -26,6 +26,8 @@ func StartVrgo(mode string) {
 	for {
 		switch mode {
 		case "primary":
+			// TODO: It's probably not enough to just clear the states at the start of primary and backup.
+			view.ClearViewChangeStates()
 			ctxCancel, cancel := context.WithCancel(ctx)
 			startPrimary(ctxCancel, opRequestLog, clientTable)
 
@@ -35,6 +37,7 @@ func StartVrgo(mode string) {
 				mode = "viewchange"
 			}
 		case "backup":
+			view.ClearViewChangeStates()
 			ctxCancel, cancel := context.WithCancel(ctx)
 			vt := time.NewTimer(5 * time.Second)
 			startBackup(ctxCancel, opRequestLog, clientTable, vt)

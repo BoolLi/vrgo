@@ -96,6 +96,28 @@ func (v *ViewChangeRPC) StartView(args *vrrpc.StartViewArgs, resp *vrrpc.StartVi
 	return nil
 }
 
+// ClearViewChangeStates clears the intermediate states of the current view change.
+// This function is atomic and thread-safe.
+func ClearViewChangeStates() {
+	startViewChangeReceived.Lock()
+	defer startViewChangeReceived.Unlock()
+	currentProposedViewNum.Lock()
+	defer currentProposedViewNum.Unlock()
+	doViewChangeArgsReceived.Lock()
+	defer doViewChangeArgsReceived.Unlock()
+	sendDoViewChangeExecuted.Lock()
+	defer sendDoViewChangeExecuted.Unlock()
+
+	for len(StartViewChangeChan) > 0 {
+		<-StartViewChangeChan
+	}
+
+	startViewChangeReceived.V = 0
+	currentProposedViewNum.V = 0
+	doViewChangeArgsReceived.Args = nil
+	sendDoViewChangeExecuted.V = false
+}
+
 func runDoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.DoViewChangeResp) error {
 	doViewChangeArgsReceived.Lock()
 	defer doViewChangeArgsReceived.Unlock()
