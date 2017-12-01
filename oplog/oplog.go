@@ -9,15 +9,9 @@ import (
 	"github.com/BoolLi/vrgo/rpc"
 )
 
-// OpRequest represents an operation record in the log.
-type OpRequest struct {
-	Request rpc.Request
-	OpNum   int
-}
-
 // OpRequestLog is the in-memory log to store all the records.
 type OpRequestLog struct {
-	Requests []OpRequest
+	Requests []rpc.OpRequest
 }
 
 // New creates an OpRequestLog.
@@ -28,7 +22,7 @@ func New() *OpRequestLog {
 // AppendRequest appends a request along with its opNum to the log.
 func (o *OpRequestLog) AppendRequest(ctx context.Context, request *rpc.Request, opNum int) error {
 	log.Printf("oplog adding %v at opNum %v", request, opNum)
-	r := OpRequest{Request: *request, OpNum: opNum}
+	r := rpc.OpRequest{Request: *request, OpNum: opNum}
 	o.Requests = append(o.Requests, r)
 	return nil
 }

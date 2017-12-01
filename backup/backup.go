@@ -13,16 +13,12 @@ import (
 
 	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/globals"
-	"github.com/BoolLi/vrgo/oplog"
-	"github.com/BoolLi/vrgo/table"
 	"github.com/BoolLi/vrgo/view"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
 
 var (
-	opRequestLog        *oplog.OpRequestLog
-	clientTable         *table.ClientTable
 	incomingPrepareSize = 5
 	incomingPrepares    chan PrimaryPrepare
 	incomingCommit      chan int // TODO: change to type CommitRequest when defined
@@ -68,7 +64,7 @@ func ProcessIncomingPrepares(ctx context.Context) {
 		// The Request encapsulated in the prepare message.
 		prepareRequest := primaryPrepare.PrepareArgs.Request
 
-		_, lastOp, _ := opRequestLog.ReadLast(ctx)
+		_, lastOp, _ := globals.OpLog.ReadLast(ctx)
 
 		// Backup should block if it does not have op for all earlier requests in its log.
 		if primaryPrepare.PrepareArgs.OpNum > (lastOp + 1) {
@@ -80,19 +76,19 @@ func ProcessIncomingPrepares(ctx context.Context) {
 		// 1. Increment op number
 		globals.OpNum += 1
 		// 2. Add request to end of log
-		if err := opRequestLog.AppendRequest(ctx, &prepareRequest, globals.OpNum); err != nil {
+		if err := globals.OpLog.AppendRequest(ctx, &prepareRequest, globals.OpNum); err != nil {
 			// TODO: Add logic when appending to log fails.
 			log.Fatalf("could not write to op request log: %v", err)
 		}
 
 		// 3. Update client table
-		clientTable.Set(strconv.Itoa(prepareRequest.ClientId),
+		globals.ClientTable.Set(strconv.Itoa(prepareRequest.ClientId),
 			vrrpc.Response{
 				ViewNum:    globals.ViewNum,
 				RequestNum: prepareRequest.RequestNum,
 				OpResult:   vrrpc.OperationResult{},
 			})
-		log.Printf("clientTable adding %+v at viewNum %v\n", prepareRequest, globals.ViewNum)
+		log.Printf("client table adding %+v at viewNum %v\n", prepareRequest, globals.ViewNum)
 
 		// 4. Send PrepareOk message to channel for primary
 		resp := vrrpc.PrepareOk{
@@ -134,9 +130,7 @@ func ServeHTTP() {
 	http.Serve(l, nil)
 }
 
-func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable, vt *time.Timer) error {
-	opRequestLog = opLog
-	clientTable = t
+func Init(ctx context.Context, vt *time.Timer) error {
 	incomingPrepares = make(chan PrimaryPrepare, incomingPrepareSize)
 	viewTimer = vt
 

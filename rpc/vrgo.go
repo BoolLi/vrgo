@@ -14,6 +14,12 @@ type Request struct {
 	// Do we need view number as well?
 }
 
+// OpRequest represents an operation record that has a Request and a operation number.
+type OpRequest struct {
+	Request Request
+	OpNum   int
+}
+
 // Response is the output type of RequestRPC.
 type Response struct {
 	ViewNum    int

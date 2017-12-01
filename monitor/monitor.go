@@ -7,6 +7,7 @@ import (
 
 	"github.com/BoolLi/vrgo/backup"
 	"github.com/BoolLi/vrgo/flags"
+	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/primary"
 	"github.com/BoolLi/vrgo/table"
@@ -20,8 +21,8 @@ import (
 func StartVrgo(mode string) {
 	ctx := context.Background()
 
-	clientTable := table.New(cache.NoExpiration, cache.NoExpiration)
-	opRequestLog := oplog.New()
+	globals.ClientTable = table.New(cache.NoExpiration, cache.NoExpiration)
+	globals.OpLog = oplog.New()
 
 	for {
 		switch mode {
@@ -29,7 +30,7 @@ func StartVrgo(mode string) {
 			// TODO: It's probably not enough to just clear the states at the start of primary and backup.
 			view.ClearViewChangeStates()
 			ctxCancel, cancel := context.WithCancel(ctx)
-			startPrimary(ctxCancel, opRequestLog, clientTable)
+			startPrimary(ctxCancel)
 
 			select {
 			case <-view.StartViewChangeChan:
@@ -40,7 +41,7 @@ func StartVrgo(mode string) {
 			view.ClearViewChangeStates()
 			ctxCancel, cancel := context.WithCancel(ctx)
 			vt := time.NewTimer(5 * time.Second)
-			startBackup(ctxCancel, opRequestLog, clientTable, vt)
+			startBackup(ctxCancel, vt)
 
 			select {
 			case <-vt.C:
@@ -63,14 +64,14 @@ func StartVrgo(mode string) {
 	}
 }
 
-func startPrimary(ctx context.Context, opRequestLog *oplog.OpRequestLog, clientTable *table.ClientTable) {
-	if err := primary.Init(ctx, opRequestLog, clientTable); err != nil {
+func startPrimary(ctx context.Context) {
+	if err := primary.Init(ctx); err != nil {
 		log.Fatalf("failed to initialize primary: %v", err)
 	}
 }
 
-func startBackup(ctx context.Context, opRequestLog *oplog.OpRequestLog, clientTable *table.ClientTable, vt *time.Timer) {
-	if err := backup.Init(ctx, opRequestLog, clientTable, vt); err != nil {
+func startBackup(ctx context.Context, vt *time.Timer) {
+	if err := backup.Init(ctx, vt); err != nil {
 		log.Fatalf("failed to initialize backup: %v", err)
 	}
 }

@@ -1,7 +1,12 @@
 // globals defines the global variables shared between primary and backup.
 package globals
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/BoolLi/vrgo/oplog"
+	"github.com/BoolLi/vrgo/table"
+)
 
 // MutexInt is a thread-safe int.
 type MutexInt struct {
@@ -51,6 +56,12 @@ var (
 
 	// The current commit number.
 	CommitNum int
+
+	// The operation log.
+	OpLog *oplog.OpRequestLog
+
+	// The client table.
+	ClientTable *table.ClientTable
 
 	// AllPorts is a temporary hardcoded map from id to port.
 	// TODO: Generate this dynamically based on a config file.

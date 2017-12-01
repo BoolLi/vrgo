@@ -11,8 +11,6 @@ import (
 	"strings"
 
 	"github.com/BoolLi/vrgo/globals"
-	"github.com/BoolLi/vrgo/oplog"
-	"github.com/BoolLi/vrgo/table"
 	"github.com/BoolLi/vrgo/view"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
@@ -53,16 +51,12 @@ const incomingReqsSize = 5
 
 var (
 	incomingReqs chan ClientRequest
-	opRequestLog *oplog.OpRequestLog
-	clientTable  *table.ClientTable
 	backups      []*rpc.Client
 )
 
 // Init initializes data structures needed for the primary.
-func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable) error {
+func Init(ctx context.Context) error {
 	incomingReqs = make(chan ClientRequest, incomingReqsSize)
-	opRequestLog = opLog
-	clientTable = t
 
 	RegisterVrgo(new(VrgoRPC))
 	RegisterView(new(view.ViewChangeRPC))
@@ -85,7 +79,7 @@ func Init(ctx context.Context, opLog *oplog.OpRequestLog, t *table.ClientTable) 
 // ProcessIncomingReqs takes requests from incomingReqs queue and processes them.
 // Note: This function is going to be the bottleneck because it has to block for each request.
 // It cannot delegate waiting for backup replies to other threads, because later requests from the same client
-// can reset clientTable while previous ones are still on the fly.
+// can reset globals.ClientTable while previous ones are still on the fly.
 // The best solution is to create a per-client incoming request queue. This ensures linearizability.
 func ProcessIncomingReqs(ctx context.Context) {
 	for {
@@ -103,12 +97,12 @@ func ProcessIncomingReqs(ctx context.Context) {
 		globals.OpNum += 1
 
 		// 3. Append request to op log.
-		if err := opRequestLog.AppendRequest(ctx, &clientReq.Request, globals.OpNum); err != nil {
+		if err := globals.OpLog.AppendRequest(ctx, &clientReq.Request, globals.OpNum); err != nil {
 			log.Fatalf("could not write %v to op request log: %v", err)
 		}
 
 		// 4. Update client table.
-		clientTable.Set(strconv.Itoa(clientReq.Request.ClientId),
+		globals.ClientTable.Set(strconv.Itoa(clientReq.Request.ClientId),
 			vrrpc.Response{
 				ViewNum:    globals.ViewNum,
 				RequestNum: clientReq.Request.RequestNum,
@@ -157,8 +151,8 @@ func ProcessIncomingReqs(ctx context.Context) {
 			log.Printf("primary context cancelled when waiting for %v replies from backups: %+v", subquorum, ctx.Err())
 			// Undo current operation.
 			globals.OpNum -= 1
-			opRequestLog.Undo(ctx)
-			clientTable.Undo(strconv.Itoa(clientReq.Request.ClientId))
+			globals.OpLog.Undo(ctx)
+			globals.ClientTable.Undo(strconv.Itoa(clientReq.Request.ClientId))
 			return
 		}
 

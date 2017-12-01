@@ -4,6 +4,7 @@ import (
 	"log"
 	"strconv"
 
+	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/rpc"
 )
 
@@ -12,7 +13,7 @@ type VrgoRPC int
 
 func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
 	k := strconv.Itoa(req.ClientId)
-	res, ok := clientTable.Get(k)
+	res, ok := globals.ClientTable.Get(k)
 
 	// If the client request is already executed before, resend the response.
 	if ok && req.RequestNum <= res.(rpc.Response).RequestNum {
