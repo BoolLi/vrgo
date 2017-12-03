@@ -42,6 +42,7 @@ func StartVrgo(mode string) {
 	for {
 		switch mode {
 		case "primary":
+			globals.Log("StartVrgo", "entered primary mode")
 			// TODO: It's probably not enough to just clear the states at the start of primary and backup.
 			view.ClearViewChangeStates()
 			ctxCancel, cancel := context.WithCancel(ctx)
@@ -54,6 +55,7 @@ func StartVrgo(mode string) {
 				mode = "viewchange"
 			}
 		case "backup":
+			globals.Log("StartVrgo", "entered backup mode")
 			view.ClearViewChangeStates()
 			ctxCancel, cancel := context.WithCancel(ctx)
 			vt := time.NewTimer(5 * time.Second)
@@ -62,7 +64,7 @@ func StartVrgo(mode string) {
 			select {
 			case <-vt.C:
 				// TODO: Think about how to stop backup from handling BackupService.
-				log.Printf("view timer expires; backup %v starts view change.", *flags.Id)
+				globals.Log("StartVrgo", "view timer expires")
 				cancel()
 				mode = "viewchange-init"
 			case <-view.StartViewChangeChan:
@@ -70,13 +72,14 @@ func StartVrgo(mode string) {
 				mode = "viewchange"
 			}
 		case "viewchange-init":
+			globals.Log("StartVrgo", "entered viewchange-init mode")
 			view.InitiateStartViewChange()
 			mode = "viewchange"
 		case "viewchange":
-			log.Printf("entered viewchange mode")
+			globals.Log("StartVrgo", "entered viewchange mode")
 			select {
 			case newMode := <-view.ViewChangeDone:
-				log.Printf("replica %v switching from %v to %v", *flags.Id, mode, newMode)
+				globals.Log("StartVrgo", "switched from %v to %v", mode, newMode)
 				mode = newMode
 			}
 			// waits until mode is set to "primary" or "backup"

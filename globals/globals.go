@@ -3,8 +3,11 @@ package globals
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"sync"
 
+	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/table"
 )
@@ -46,6 +49,11 @@ func (m *MutexBool) Locked(f func()) {
 	m.Lock()
 	defer m.Unlock()
 	f()
+}
+
+func Log(f, format string, args ...interface{}) {
+	msg := fmt.Sprintf(format, args...)
+	log.Printf("[%v, %20v] %v", *flags.Id, f, msg)
 }
 
 var (

@@ -50,11 +50,11 @@ var (
 // doing right now and start the view change protocol. It implements step 1 and 2 in section 4.2 in the paper.
 // This function is thread-safe, so multiple nodes can call this RPC on the same node concurrently.
 func (v *ViewChangeRPC) StartViewChange(args *vrrpc.StartViewChangeArgs, resp *vrrpc.StartViewChangeResp) error {
-	log.Printf("replica %v receives StartViewChange with %v from %v.\n", *flags.Id, args.ViewNum, args.Id)
+	globals.Log("StartViewChange", "received StartViewChange with view num %v from %v.", args.ViewNum, args.Id)
 
 	if args.ViewNum <= globals.ViewNum {
 		// If the proposed view num is smaller than the current view num, do nothing.
-		log.Printf("exiting because proposed view num %v is no larger than current view num %v", args.ViewNum, globals.ViewNum)
+		globals.Log("StartViewChange", "got proposed view num %v but it is no larger than current view num %v", args.ViewNum, globals.ViewNum)
 		return nil
 	}
 
@@ -69,7 +69,7 @@ func (v *ViewChangeRPC) StartViewChange(args *vrrpc.StartViewChangeArgs, resp *v
 
 	// If somebody else proposes a view with a larger view num, we should advocate that instead of the old one.
 	if args.ViewNum > currentProposedViewNum.V {
-		log.Printf("the view num %v proposed is larger than the current proposed view num %v\n", args.ViewNum, currentProposedViewNum.V)
+		globals.Log("StartViewChange", "proposed view num %v is larger than the current proposed view num %v", args.ViewNum, currentProposedViewNum.V)
 		startViewChangeReceived.V = 0
 		currentProposedViewNum.V = args.ViewNum
 
@@ -79,12 +79,12 @@ func (v *ViewChangeRPC) StartViewChange(args *vrrpc.StartViewChangeArgs, resp *v
 		}
 	}
 	startViewChangeReceived.V += 1
-	log.Printf("replica %v increments startViewChangeReceived to %v\n", *flags.Id, startViewChangeReceived.V)
+	globals.Log("StartViewChange", "StartViewChanges received so far: %v", startViewChangeReceived.V)
 
 	// Only send DoViewChange when enough StartViewChange messages have been received and DoViewChange hasn't been sent before.
 	sendDoViewChangeExecuted.Locked(func() {
 		if startViewChangeReceived.V > subquorum && !sendDoViewChangeExecuted.V {
-			log.Printf("replica %v got more than %v StartViewChange messages\n", *flags.Id, subquorum)
+			globals.Log("StartViewChange", "got more than %v StartViewChange messages", subquorum)
 			// TODO: Should we do this in a separate thread?
 			sendDoViewChange(currentProposedViewNum.V, globals.ViewNum, globals.OpNum, globals.CommitNum, *flags.Id)
 			sendDoViewChangeExecuted.V = true
@@ -103,7 +103,7 @@ func (v *ViewChangeRPC) DoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.D
 
 // StartView handles the StartView RPC.
 func (v *ViewChangeRPC) StartView(args *vrrpc.StartViewArgs, resp *vrrpc.StartViewResp) error {
-	log.Printf("replica %v got StartView from new primary: %+v", *flags.Id, args)
+	globals.Log("StartView", "got StartView from new primary: %+v", *flags.Id, args)
 	ViewChangeDone <- "backup"
 	return nil
 }
@@ -133,7 +133,7 @@ func ClearViewChangeStates() {
 func runDoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.DoViewChangeResp) error {
 	if args.ViewNum <= globals.ViewNum {
 		// If the proposed view num is smaller than the current view num, do nothing.
-		log.Printf("received do view change view num %v <= current view num %v", args.ViewNum, globals.ViewNum)
+		globals.Log("runDoViewChange", "received DoViewChange's view num %v <= current view num %v", args.ViewNum, globals.ViewNum)
 		return nil
 	}
 
@@ -142,7 +142,7 @@ func runDoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.DoViewChangeResp)
 
 	doViewChangeArgsReceived.Args = append(doViewChangeArgsReceived.Args, args)
 	if len(doViewChangeArgsReceived.Args) != subquorum {
-		log.Printf("replica %v received %v DoViewChanges != subquorum %v", *flags.Id, len(doViewChangeArgsReceived.Args), subquorum)
+		globals.Log("runDoViewChange", "received %v DoViewChanges != subquorum %v", len(doViewChangeArgsReceived.Args), subquorum)
 		return nil
 	}
 
@@ -151,22 +151,21 @@ func runDoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.DoViewChangeResp)
 		log.Fatalf("replica %v received DoViewChange messages with different view nums: %+v\n", *flags.Id, doViewChangeArgsReceived)
 	}
 
-	log.Printf("replica %v becomes the new primary", *flags.Id)
+	globals.Log("runDoViewChange", "became the new primary")
 
 	// 1. Set new view num.
-	log.Printf("previous view num: %v; new view num: %v", globals.ViewNum, args.ViewNum)
+	globals.Log("runDoViewChange", "view num: %v => %v", globals.ViewNum, args.ViewNum)
 	globals.ViewNum = args.ViewNum
 
 	// 2. Update op log to be the one with the largest latest normal view num.
 	refreshLog()
-	log.Printf("oplog: %+v", globals.OpLog)
 
 	// 3. Update the op num to that of the topmost entry in the new log.
 	_, opNum, err := globals.OpLog.ReadLast(globals.CtxCancel)
 	if err != nil {
 		log.Fatalf("failed to read the last entry in the new log: %v", err)
 	}
-	log.Printf("previous op num: %v; new op num: %v", globals.OpNum, opNum)
+	globals.Log("runDoViewChang", "op num: %v => %v", globals.OpNum, opNum)
 	globals.OpNum = opNum
 
 	// 4. Set commit num to the largest such number it received in the DoViewChange messages.
@@ -191,7 +190,7 @@ func refreshLog() {
 			maxNormalViewNum = args.LatestNormalViewNum
 		}
 	}
-	log.Printf("changing oplog to the log in the message with latest normal view num %v", maxNormalViewNum)
+	globals.Log("refreshLog", "changing oplog to the log in the message with latest normal view num %v", maxNormalViewNum)
 	globals.OpLog = &oplog.OpRequestLog{Requests: *l}
 	// TODO: If several messages have the same v', selects the one among them with the largest op num.
 }
@@ -203,7 +202,7 @@ func refreshCommitNum() {
 			maxCommitNum = args.CommitNum
 		}
 	}
-	log.Printf("changing commit num from %v to %v", globals.CommitNum, maxCommitNum)
+	globals.Log("refreshCommitNum", "commit num: %v => %v", globals.CommitNum, maxCommitNum)
 	globals.CommitNum = maxCommitNum
 }
 
@@ -241,7 +240,7 @@ func InitiateStartViewChange() {
 
 // SendStartViewChange sends a StartViewChange message with a proposed viewNum and the current node id to a replica at port.
 func SendStartViewChange(port, viewNum, id int) {
-	log.Printf("replica %v sends StartViewChange %v to replica with port %v\n", *flags.Id, viewNum, port)
+	globals.Log("SendStartViewChange", "sending StartViewChange %v to replica with port %v", viewNum, port)
 	p := strconv.Itoa(port)
 	// TODO: Make it more efficient by caching client for each port.
 	client, err := rpc.DialHTTP("tcp", "localhost:"+p)
@@ -259,7 +258,7 @@ func SendStartViewChange(port, viewNum, id int) {
 
 func sendDoViewChange(viewNum, currentViewNum, opNum, commitNum, id int) {
 	newPrimaryId := viewNum % len(globals.AllPorts)
-	log.Printf("sending DoViewChange to new primary %v\n", newPrimaryId)
+	globals.Log("sendDoViewChange", "sending DoViewChange to new primary %v", newPrimaryId)
 	newPrimaryPort := globals.AllPorts[newPrimaryId]
 	req := vrrpc.DoViewChangeArgs{
 		ViewNum:             viewNum,
@@ -272,7 +271,6 @@ func sendDoViewChange(viewNum, currentViewNum, opNum, commitNum, id int) {
 	var resp vrrpc.DoViewChangeResp
 
 	if newPrimaryId == *flags.Id {
-		log.Printf("new primary %v is the current node.\n", newPrimaryId)
 		// call runDoViewChange() directly.
 		// TODO: maybe as a Go routine?
 		runDoViewChange(&req, &resp)
@@ -288,7 +286,7 @@ func sendDoViewChange(viewNum, currentViewNum, opNum, commitNum, id int) {
 }
 
 func sendStartView(port int) {
-	log.Printf("new primary %v sending StartView to replica at %v", *flags.Id, port)
+	globals.Log("sendStartView", "sending StartView to replica at %v", port)
 	req := vrrpc.StartViewArgs{
 		ViewNum:   globals.ViewNum,
 		Log:       globals.OpLog.Requests,

@@ -36,7 +36,7 @@ type PrimaryPrepare struct {
 
 // Prepare responds to primary with a PrepareOk message if criteria is met
 func (r *BackupReply) Prepare(prepare *vrrpc.PrepareArgs, resp *vrrpc.PrepareOk) error {
-	log.Printf("got prepare message from primary: %+v\n", *prepare)
+	globals.Log("Prepare", "got prepare message from primary: %+v", *prepare)
 
 	ch := AddIncomingPrepare(prepare)
 	select {
@@ -53,9 +53,9 @@ func ProcessIncomingPrepares(ctx context.Context) {
 		var primaryPrepare PrimaryPrepare
 		select {
 		case primaryPrepare = <-incomingPrepares:
-			log.Printf("consuming prepare %+v from primary\n", primaryPrepare.PrepareArgs)
+			globals.Log("ProcessIncomingPrepares", "consuming prepare %+v from primary", primaryPrepare.PrepareArgs)
 		case <-ctx.Done():
-			log.Printf("backup context cancelled when waiting for incoming prepares: %+v", ctx.Err())
+			globals.Log("ProcessIncomingPrepares", "backup context cancelled when waiting for incoming prepares: %+v", ctx.Err())
 			return
 		}
 
@@ -88,7 +88,7 @@ func ProcessIncomingPrepares(ctx context.Context) {
 				RequestNum: prepareRequest.RequestNum,
 				OpResult:   vrrpc.OperationResult{},
 			})
-		log.Printf("client table adding %+v at viewNum %v\n", prepareRequest, globals.ViewNum)
+		globals.Log("ProcessIncomingPrepares", "client table adding %+v at viewNum %v", prepareRequest, globals.ViewNum)
 
 		// 4. Send PrepareOk message to channel for primary
 		resp := vrrpc.PrepareOk{
@@ -96,7 +96,7 @@ func ProcessIncomingPrepares(ctx context.Context) {
 			OpNum:   globals.OpNum,
 			Id:      *flags.Id,
 		}
-		log.Printf("backup %v sending PrepareOk %+v to primary\n", *flags.Id, resp)
+		globals.Log("ProcessIncomingPrepares", "backup %v sending PrepareOk %+v to primary", *flags.Id, resp)
 
 		primaryPrepare.done <- resp
 	}

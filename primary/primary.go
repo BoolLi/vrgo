@@ -87,9 +87,9 @@ func ProcessIncomingReqs(ctx context.Context) {
 		var clientReq ClientRequest
 		select {
 		case clientReq = <-incomingReqs:
-			log.Printf("taking new request from incoming queue: %+v\n", clientReq.Request)
+			globals.Log("ProcessIncomingReqs", "taking new request from incoming queue: %+v", clientReq.Request)
 		case <-ctx.Done():
-			log.Printf("primary context cancelled when waiting for incoming requests: %+v", ctx.Err())
+			globals.Log("ProcessIncomingReqs", "primary context cancelled when waiting for incoming requests: %+v", ctx.Err())
 			return
 		}
 
@@ -108,7 +108,7 @@ func ProcessIncomingReqs(ctx context.Context) {
 				RequestNum: clientReq.Request.RequestNum,
 				OpResult:   vrrpc.OperationResult{},
 			})
-		log.Printf("clientTable adding %+v at viewNum %v\n", clientReq.Request, globals.ViewNum)
+		globals.Log("ProcessIncomingReqs", "clientTable adding %+v at viewNum %v", clientReq.Request, globals.ViewNum)
 
 		// 5. Send Prepare messages.
 		args := vrrpc.PrepareArgs{
@@ -126,10 +126,10 @@ func ProcessIncomingReqs(ctx context.Context) {
 				var reply vrrpc.PrepareOk
 				err := c.Call("BackupReply.Prepare", args, &reply)
 				if err != nil {
-					log.Printf("got error from backup: %v", err)
+					globals.Log("ProcessIncomingReqs", "got error from backup: %v", err)
 					return
 				}
-				log.Printf("got PrepareOK from backup: %+v\n", reply)
+				globals.Log("ProcessIncomingReqs", "got PrepareOK from backup: %+v", reply)
 				quorumChan <- true
 			}(c)
 		}
@@ -146,9 +146,9 @@ func ProcessIncomingReqs(ctx context.Context) {
 		}()
 		select {
 		case _ = <-quorumReadyChan:
-			log.Printf("got %v replies from backups; marking request as done", subquorum)
+			globals.Log("ProcessIncomingReqs", "got %v replies from backups; marking request as done", subquorum)
 		case <-ctx.Done():
-			log.Printf("primary context cancelled when waiting for %v replies from backups: %+v", subquorum, ctx.Err())
+			globals.Log("ProcessIncomingReqs", "primary context cancelled when waiting for %v replies from backups: %+v", subquorum, ctx.Err())
 			// Undo current operation.
 			globals.OpNum -= 1
 			globals.OpLog.Undo(ctx)
@@ -159,7 +159,7 @@ func ProcessIncomingReqs(ctx context.Context) {
 		// Now we consider operation commmited.
 
 		// 7. Exeucte the request.
-		log.Printf("executing %v", clientReq.Request.Op.Message)
+		globals.Log("ProcessIncomingReqs", "executing %v", clientReq.Request.Op.Message)
 
 		// 8. Increment the commit number.
 		globals.CommitNum += 1
