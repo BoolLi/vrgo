@@ -38,9 +38,10 @@ func StartVrgo(mode string) {
 		}
 		http.Serve(l, nil)
 	}()
+	globals.Mode = mode
 
 	for {
-		switch mode {
+		switch globals.Mode {
 		case "primary":
 			globals.Log("StartVrgo", "entered primary mode")
 			// TODO: It's probably not enough to just clear the states at the start of primary and backup.
@@ -52,7 +53,7 @@ func StartVrgo(mode string) {
 			select {
 			case <-view.StartViewChangeChan:
 				cancel()
-				mode = "viewchange"
+				globals.Mode = "viewchange"
 			}
 		case "backup":
 			globals.Log("StartVrgo", "entered backup mode")
@@ -66,21 +67,21 @@ func StartVrgo(mode string) {
 				// TODO: Think about how to stop backup from handling BackupService.
 				globals.Log("StartVrgo", "view timer expires")
 				cancel()
-				mode = "viewchange-init"
+				globals.Mode = "viewchange-init"
 			case <-view.StartViewChangeChan:
 				cancel()
-				mode = "viewchange"
+				globals.Mode = "viewchange"
 			}
 		case "viewchange-init":
 			globals.Log("StartVrgo", "entered viewchange-init mode")
 			view.InitiateStartViewChange()
-			mode = "viewchange"
+			globals.Mode = "viewchange"
 		case "viewchange":
 			globals.Log("StartVrgo", "entered viewchange mode")
 			select {
 			case newMode := <-view.ViewChangeDone:
-				globals.Log("StartVrgo", "switched from %v to %v", mode, newMode)
-				mode = newMode
+				globals.Log("StartVrgo", "switched from %v to %v", globals.Mode, newMode)
+				globals.Mode = newMode
 			}
 			// waits until mode is set to "primary" or "backup"
 		}

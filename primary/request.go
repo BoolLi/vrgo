@@ -4,21 +4,29 @@ import (
 	"strconv"
 
 	"github.com/BoolLi/vrgo/globals"
-	"github.com/BoolLi/vrgo/rpc"
+	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
 
 // VrgoRPC defines the user RPCs exported by server.
 type VrgoRPC int
 
-func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
+func (v *VrgoRPC) Execute(req *vrrpc.Request, resp *vrrpc.Response) error {
 	// TODO: If mode is not primary, then tell client who the new primary is.
+	if globals.Mode != "primary" {
+		globals.Log("Execute", "I am not primary anymore; view num: %v", globals.ViewNum)
+		*resp = vrrpc.Response{
+			ViewNum: globals.ViewNum,
+		}
+		return nil
+	}
+
 	k := strconv.Itoa(req.ClientId)
 	res, ok := globals.ClientTable.Get(k)
 
 	// If the client request is already executed before, resend the response.
-	if ok && req.RequestNum <= res.(rpc.Response).RequestNum {
+	if ok && req.RequestNum <= res.(vrrpc.Response).RequestNum {
 		globals.Log("Execute", "request %+v is already executed; returning previous result %+v directly", req, res)
-		*resp = res.(rpc.Response)
+		*resp = res.(vrrpc.Response)
 		return nil
 	}
 

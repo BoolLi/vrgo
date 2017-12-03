@@ -9,21 +9,29 @@ import (
 	"net/rpc"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/BoolLi/vrgo/flags"
+	"github.com/BoolLi/vrgo/globals"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
 
-var requestNum = flag.Int("request_num", 0, "request number")
+var (
+	requestNum = flag.Int("request_num", 0, "request number")
+
+	client    *rpc.Client
+	clientMux sync.Mutex
+)
 
 // RunClient runs the client code.
 func RunClient() {
 	p := strconv.Itoa(*flags.Port)
-	client, err := rpc.DialHTTP("tcp", "localhost:"+p)
+	c, err := rpc.DialHTTP("tcp", "localhost:"+p)
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}
+	client = c
 
 	// If we are in automated mode (indicated by negative client id), send
 	// predefined inputs automatically.
@@ -55,7 +63,10 @@ func RunClient() {
 		}
 
 		var resp vrrpc.Response
+		clientMux.Lock()
 		call := client.Go("VrgoRPC.Execute", req, &resp, nil)
+		clientMux.Unlock()
+
 		go printResp(call)
 
 		// TODO: Need to find a way to increment requestNum but also allow users to send request with same requestNum.
@@ -63,7 +74,39 @@ func RunClient() {
 	}
 }
 
+func currentPrimaryId() (int, error) {
+	for id, p := range globals.AllPorts {
+		if p == *flags.Port {
+			return id, nil
+		}
+	}
+	return 0, fmt.Errorf("cannot find id corresponding to port %v", *flags.Port)
+}
+
 func printResp(call *rpc.Call) {
 	resp := <-call.Done
-	fmt.Printf("Vrgo response: %v\n", resp.Reply.(*vrrpc.Response).OpResult.Message)
+	curId, err := currentPrimaryId()
+	if err != nil {
+		log.Fatalf("Failed to look up primary ID: %v", err)
+	}
+	newId := resp.Reply.(*vrrpc.Response).ViewNum % len(globals.AllPorts)
+
+	log.Printf("current view num: %v", resp.Reply.(*vrrpc.Response).ViewNum)
+	if curId == newId {
+		fmt.Printf("Vrgo response: %v\n", resp.Reply.(*vrrpc.Response).OpResult.Message)
+		return
+	}
+
+	log.Printf("Primary %v => %v", curId, newId)
+	clientMux.Lock()
+	defer clientMux.Unlock()
+	client.Close()
+
+	*flags.Port = globals.AllPorts[newId]
+	p := strconv.Itoa(*flags.Port)
+	c, err := rpc.DialHTTP("tcp", "localhost:"+p)
+	if err != nil {
+		log.Fatal("dialing:", err)
+	}
+	client = c
 }

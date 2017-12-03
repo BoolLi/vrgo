@@ -105,6 +105,8 @@ func (v *ViewChangeRPC) DoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.D
 func (v *ViewChangeRPC) StartView(args *vrrpc.StartViewArgs, resp *vrrpc.StartViewResp) error {
 	globals.Log("StartView", "got StartView from new primary: %+v", *flags.Id, args)
 	ViewChangeDone <- "backup"
+
+	globals.ViewNum = args.ViewNum
 	return nil
 }
 
@@ -125,7 +127,7 @@ func ClearViewChangeStates() {
 	}
 
 	startViewChangeReceived.V = 0
-	currentProposedViewNum.V = 0
+	currentProposedViewNum.V = globals.ViewNum
 	doViewChangeArgsReceived.Args = nil
 	sendDoViewChangeExecuted.V = false
 }

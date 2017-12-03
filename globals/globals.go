@@ -66,6 +66,9 @@ var (
 	// The current commit number.
 	CommitNum int
 
+	// The mode of the replica. Only monitor is supposed to change this.
+	Mode string
+
 	// The operation log.
 	OpLog *oplog.OpRequestLog
 
