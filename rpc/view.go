@@ -23,7 +23,7 @@ type StartViewChangeResp struct {
 // DoViewChangeArgs is the arguments to tell the new primary to start a new view.
 type DoViewChangeArgs struct {
 	ViewNum             int
-	Log                 []Request
+	Log                 []OpRequest
 	LatestNormalViewNum int
 	OpNum               int
 	CommitNum           int
@@ -37,7 +37,7 @@ type DoViewChangeResp struct {
 // StartViewArgs is the arguments for the primary to start a new view.
 type StartViewArgs struct {
 	ViewNum   int
-	Log       []Request
+	Log       []OpRequest
 	OpNum     int
 	CommitNum int
 }

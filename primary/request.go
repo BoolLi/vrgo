@@ -12,6 +12,7 @@ import (
 type VrgoRPC int
 
 func (v *VrgoRPC) Execute(req *rpc.Request, resp *rpc.Response) error {
+	// TODO: If mode is not primary, then tell client who the new primary is.
 	k := strconv.Itoa(req.ClientId)
 	res, ok := globals.ClientTable.Get(k)
 

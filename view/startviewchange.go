@@ -8,6 +8,7 @@ import (
 
 	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/globals"
+	"github.com/BoolLi/vrgo/oplog"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
@@ -20,12 +21,22 @@ type mutexDoViewChangeArgs struct {
 	Args []*vrrpc.DoViewChangeArgs
 }
 
+// Locked locks the value.
+func (m *mutexDoViewChangeArgs) Locked(f func()) {
+	m.Lock()
+	defer m.Unlock()
+	f()
+}
+
 var (
 	// A buffered channel to signal the monitor thread to change to view change mode.
 	// Note: we use a buffered channel here because multiple threads running StartViewChange() could be
 	// sending signals to the channel at the same time, but the monitor thread can only consume one of them.
 	// Having a buffered channel ensures that while only the first signal is consumed, the rest of the threads do not block.
 	StartViewChangeChan chan int = make(chan int, len(globals.AllPorts))
+
+	// A channel to notify the monitor that view change is done and what mode should the replica switch to.
+	ViewChangeDone chan string = make(chan string)
 
 	startViewChangeReceived  globals.MutexInt
 	currentProposedViewNum   globals.MutexInt
@@ -41,14 +52,14 @@ var (
 func (v *ViewChangeRPC) StartViewChange(args *vrrpc.StartViewChangeArgs, resp *vrrpc.StartViewChangeResp) error {
 	log.Printf("replica %v receives StartViewChange with %v from %v.\n", *flags.Id, args.ViewNum, args.Id)
 
-	// Send a signal to the monitor to change to the view change mode.
-	StartViewChangeChan <- 1
-
 	if args.ViewNum <= globals.ViewNum {
 		// If the proposed view num is smaller than the current view num, do nothing.
 		log.Printf("exiting because proposed view num %v is no larger than current view num %v", args.ViewNum, globals.ViewNum)
 		return nil
 	}
+
+	// Send a signal to the monitor to change to the view change mode.
+	StartViewChangeChan <- 1
 
 	// Lock the view change states to prevent race conditions across multiple threads.
 	currentProposedViewNum.Lock()
@@ -87,12 +98,13 @@ func (v *ViewChangeRPC) StartViewChange(args *vrrpc.StartViewChangeArgs, resp *v
 // This function is triggered when the new primary receives a DoViewChange message. It only starts a new view when enough DoViewChange
 // messages are received. It is thread-safe so multiple nodes can send DoViewChange messages to the new primary concurrently.
 func (v *ViewChangeRPC) DoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.DoViewChangeResp) error {
-	log.Printf("new primary %v got DoViewChange message %+v", *flags.Id, args)
 	return runDoViewChange(args, resp)
 }
 
 // StartView handles the StartView RPC.
 func (v *ViewChangeRPC) StartView(args *vrrpc.StartViewArgs, resp *vrrpc.StartViewResp) error {
+	log.Printf("replica %v got StartView from new primary: %+v", *flags.Id, args)
+	ViewChangeDone <- "backup"
 	return nil
 }
 
@@ -119,24 +131,80 @@ func ClearViewChangeStates() {
 }
 
 func runDoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.DoViewChangeResp) error {
+	if args.ViewNum <= globals.ViewNum {
+		// If the proposed view num is smaller than the current view num, do nothing.
+		log.Printf("received do view change view num %v <= current view num %v", args.ViewNum, globals.ViewNum)
+		return nil
+	}
+
 	doViewChangeArgsReceived.Lock()
 	defer doViewChangeArgsReceived.Unlock()
 
-	// Only send a StartView message when enough DoViewChange messages are received.
-	if len(doViewChangeArgsReceived.Args) < subquorum {
-		doViewChangeArgsReceived.Args = append(doViewChangeArgsReceived.Args, args)
-		log.Printf("new primary %v received %+v, but it's only received %v DoViewChange messages so far\n", *flags.Id, args, len(doViewChangeArgsReceived.Args))
+	doViewChangeArgsReceived.Args = append(doViewChangeArgsReceived.Args, args)
+	if len(doViewChangeArgsReceived.Args) != subquorum {
+		log.Printf("replica %v received %v DoViewChanges != subquorum %v", *flags.Id, len(doViewChangeArgsReceived.Args), subquorum)
 		return nil
 	}
 
 	// Make sure all the DoViewChange messages have the same view num.
 	if !sameViewNums() {
-		log.Fatalf("new primary %v received DoViewChange messages with different view nums: %+v\n", *flags.Id, doViewChangeArgsReceived)
+		log.Fatalf("replica %v received DoViewChange messages with different view nums: %+v\n", *flags.Id, doViewChangeArgsReceived)
 	}
 
-	// TODO: Change states and send StartView.
 	log.Printf("replica %v becomes the new primary", *flags.Id)
+
+	// 1. Set new view num.
+	log.Printf("previous view num: %v; new view num: %v", globals.ViewNum, args.ViewNum)
+	globals.ViewNum = args.ViewNum
+
+	// 2. Update op log to be the one with the largest latest normal view num.
+	refreshLog()
+	log.Printf("oplog: %+v", globals.OpLog)
+
+	// 3. Update the op num to that of the topmost entry in the new log.
+	_, opNum, err := globals.OpLog.ReadLast(globals.CtxCancel)
+	if err != nil {
+		log.Fatalf("failed to read the last entry in the new log: %v", err)
+	}
+	log.Printf("previous op num: %v; new op num: %v", globals.OpNum, opNum)
+	globals.OpNum = opNum
+
+	// 4. Set commit num to the largest such number it received in the DoViewChange messages.
+	refreshCommitNum()
+
+	// 5. Send StartView to all other replicas.
+	for _, p := range AllOtherPorts() {
+		sendStartView(p)
+	}
+
+	// 6. Notify monitor to switch to primary mode.
+	ViewChangeDone <- "primary"
 	return nil
+}
+
+func refreshLog() {
+	maxNormalViewNum := -1
+	var l *[]vrrpc.OpRequest
+	for _, args := range doViewChangeArgsReceived.Args {
+		if args.LatestNormalViewNum > maxNormalViewNum {
+			l = &args.Log
+			maxNormalViewNum = args.LatestNormalViewNum
+		}
+	}
+	log.Printf("changing oplog to the log in the message with latest normal view num %v", maxNormalViewNum)
+	globals.OpLog = &oplog.OpRequestLog{Requests: *l}
+	// TODO: If several messages have the same v', selects the one among them with the largest op num.
+}
+
+func refreshCommitNum() {
+	maxCommitNum := 0
+	for _, args := range doViewChangeArgsReceived.Args {
+		if args.CommitNum > maxCommitNum {
+			maxCommitNum = args.CommitNum
+		}
+	}
+	log.Printf("changing commit num from %v to %v", globals.CommitNum, maxCommitNum)
+	globals.CommitNum = maxCommitNum
 }
 
 func sameViewNums() bool {
@@ -189,14 +257,13 @@ func SendStartViewChange(port, viewNum, id int) {
 	_ = client.Go("ViewChangeRPC.StartViewChange", req, &resp, nil)
 }
 
-// TODO: Need to add log too.
 func sendDoViewChange(viewNum, currentViewNum, opNum, commitNum, id int) {
 	newPrimaryId := viewNum % len(globals.AllPorts)
 	log.Printf("sending DoViewChange to new primary %v\n", newPrimaryId)
 	newPrimaryPort := globals.AllPorts[newPrimaryId]
 	req := vrrpc.DoViewChangeArgs{
 		ViewNum:             viewNum,
-		Log:                 nil,
+		Log:                 globals.OpLog.Requests,
 		LatestNormalViewNum: currentViewNum,
 		OpNum:               opNum,
 		CommitNum:           commitNum,
@@ -218,4 +285,21 @@ func sendDoViewChange(viewNum, currentViewNum, opNum, commitNum, id int) {
 		log.Fatal("dialing:", err)
 	}
 	_ = client.Go("ViewChangeRPC.DoViewChange", req, &resp, nil)
+}
+
+func sendStartView(port int) {
+	log.Printf("new primary %v sending StartView to replica at %v", *flags.Id, port)
+	req := vrrpc.StartViewArgs{
+		ViewNum:   globals.ViewNum,
+		Log:       globals.OpLog.Requests,
+		OpNum:     globals.OpNum,
+		CommitNum: globals.CommitNum,
+	}
+	var resp vrrpc.StartViewResp
+	p := strconv.Itoa(port)
+	client, err := rpc.DialHTTP("tcp", "localhost:"+p)
+	if err != nil {
+		log.Fatal("dialing:", err)
+	}
+	_ = client.Go("ViewChangeRPC.StartView", req, &resp, nil)
 }

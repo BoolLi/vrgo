@@ -2,6 +2,7 @@
 package globals
 
 import (
+	"context"
 	"sync"
 
 	"github.com/BoolLi/vrgo/oplog"
@@ -62,6 +63,9 @@ var (
 
 	// The client table.
 	ClientTable *table.ClientTable
+
+	// The global cancellable context.
+	CtxCancel context.Context
 
 	// AllPorts is a temporary hardcoded map from id to port.
 	// TODO: Generate this dynamically based on a config file.

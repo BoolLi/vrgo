@@ -60,7 +60,7 @@ func Init(ctx context.Context) error {
 
 	RegisterVrgo(new(VrgoRPC))
 	RegisterView(new(view.ViewChangeRPC))
-	go ServeHTTP()
+	//go ServeHTTP()
 
 	for _, p := range ports {
 		var err error

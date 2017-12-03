@@ -2,7 +2,11 @@ package monitor
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net"
+	"net/http"
+	"net/rpc"
 	"time"
 
 	"github.com/BoolLi/vrgo/backup"
@@ -24,12 +28,24 @@ func StartVrgo(mode string) {
 	globals.ClientTable = table.New(cache.NoExpiration, cache.NoExpiration)
 	globals.OpLog = oplog.New()
 
+	// Serve starts an HTTP server to handle RPC requests.
+	go func() {
+		// Serve starts an HTTP server to handle RPC requests.
+		rpc.HandleHTTP()
+		l, err := net.Listen("tcp", fmt.Sprintf(":%v", *flags.Port))
+		if err != nil {
+			log.Fatalf("failed to listen on port %v: %v", *flags.Port, err)
+		}
+		http.Serve(l, nil)
+	}()
+
 	for {
 		switch mode {
 		case "primary":
 			// TODO: It's probably not enough to just clear the states at the start of primary and backup.
 			view.ClearViewChangeStates()
 			ctxCancel, cancel := context.WithCancel(ctx)
+			globals.CtxCancel = ctxCancel
 			startPrimary(ctxCancel)
 
 			select {
@@ -58,7 +74,11 @@ func StartVrgo(mode string) {
 			mode = "viewchange"
 		case "viewchange":
 			log.Printf("entered viewchange mode")
-			select {}
+			select {
+			case newMode := <-view.ViewChangeDone:
+				log.Printf("replica %v switching from %v to %v", *flags.Id, mode, newMode)
+				mode = newMode
+			}
 			// waits until mode is set to "primary" or "backup"
 		}
 	}

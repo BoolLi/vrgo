@@ -136,7 +136,7 @@ func Init(ctx context.Context, vt *time.Timer) error {
 
 	Register(new(BackupReply))
 	Register(new(view.ViewChangeRPC))
-	go ServeHTTP()
+	//go ServeHTTP()
 
 	go ProcessIncomingPrepares(ctx)
 
