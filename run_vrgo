@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-import sys, os, csv, pty
-from subprocess import call, Popen, PIPE, STDOUT, check_output
+import sys, os, csv
 
 '''
 Python script to parse csv containing list of replicas.
@@ -14,13 +13,12 @@ script that is used to start the backups, primary, and client.
 
 if __name__ == "__main__":
   go_path = os.environ.get('GOPATH')
+  config_path = go_path + '/src/github.com/BoolLi/vrgo/replicas.csv'
+  primary_args = {'gopath': go_path, 'id': 0, 'config_path': config_path}
+  client_args = {'gopath': go_path, 'id': '123', 'config_path': config_path}
 
-  primary_args = {'gopath': go_path, 'port': '', 'id': 0, 'backup_ports': [], 'backup_list': ''}
-  client_args = {'gopath': go_path, 'port': '1234', 'id': '123'}
-
-  primary_cmd = '{gopath}/bin/vrgo --mode=primary --port={port} --id={id} {backup_list} > {gopath}/bin/primary.log&'
-  backup_cmd = '{gopath}/bin/vrgo --mode=backup --port={port} --id={id} > {gopath}/bin/backups{id}-{port}.log&'
-  client_cmd = '{gopath}/bin/vrgo --mode=client --port=1234 --id=123'.format(**client_args)
+  replica_cmd = '{gopath}/bin/vrgo --id={id} --config_path={config_path} > {gopath}/bin/{id}.log&'
+  client_cmd = '{gopath}/bin/vrgo --id={id} --config_path={config_path}'.format(**client_args)
 
   f = open('run_vrgo.sh', 'w')
   f.write("#!/bin/bash\n")
@@ -29,22 +27,20 @@ if __name__ == "__main__":
     csvreader = csv.reader(replicas, delimiter=',')
     for row in csvreader:
       if row[0] == 'primary':
-        primary_args['port'] = row[2]
         primary_args['id'] = row[1]
       else:
-        backup_args = {'gopath' : go_path, 'port': row[2], 'id': row[1]}
-        primary_args['backup_ports'].append(row[2])
-        cmd = backup_cmd.format(**backup_args)
+        backup_args = {'gopath' : go_path, 'id': row[1], 'config_path': config_path}
+        cmd = replica_cmd.format(**backup_args)
         print cmd
         f.write('eval "{}"\n'.format(cmd))
 
-  for p in primary_args['backup_ports']:
-    primary_args['backup_list'] += ' --backup_ports={}'.format(p)
-  primary_cmd = primary_cmd.format(**primary_args)
+  primary_cmd = replica_cmd.format(**primary_args)
   print primary_cmd
   f.write('eval "{}"\n'.format(primary_cmd))
 
   print client_cmd
   f.write('eval "{}"\n'.format(client_cmd))
 
+  f.close()
+  os.chmod('run_vrgo.sh', 0o777)
   print 'RUN: ./run_vrgo.sh'

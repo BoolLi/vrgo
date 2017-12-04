@@ -3,10 +3,7 @@ package backup
 
 import (
 	"context"
-	"fmt"
 	"log"
-	"net"
-	"net/http"
 	"net/rpc"
 	"strconv"
 	"time"
@@ -120,23 +117,12 @@ func Register(rcvr interface{}) error {
 	return rpc.Register(rcvr)
 }
 
-// Serve starts an HTTP server to handle RPC requests.
-func ServeHTTP() {
-	rpc.HandleHTTP()
-	l, err := net.Listen("tcp", fmt.Sprintf(":%v", *flags.Port))
-	if err != nil {
-		log.Fatalf("failed to listen on port %v: %v", *flags.Port, err)
-	}
-	http.Serve(l, nil)
-}
-
 func Init(ctx context.Context, vt *time.Timer) error {
 	incomingPrepares = make(chan PrimaryPrepare, incomingPrepareSize)
 	viewTimer = vt
 
 	Register(new(BackupReply))
 	Register(new(view.ViewChangeRPC))
-	//go ServeHTTP()
 
 	go ProcessIncomingPrepares(ctx)
 

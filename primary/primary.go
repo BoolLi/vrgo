@@ -3,43 +3,16 @@ package primary
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"net/rpc"
 	"strconv"
-	"strings"
 
 	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/view"
 
 	vrrpc "github.com/BoolLi/vrgo/rpc"
 )
-
-type backupPorts []int
-
-func (cp *backupPorts) String() string {
-	var ps []string
-	for _, p := range *cp {
-		ps = append(ps, fmt.Sprintf("%v", p))
-	}
-	return strings.Join(ps, ", ")
-}
-
-func (cp *backupPorts) Set(value string) error {
-	p, err := strconv.Atoi(value)
-	if err != nil {
-		return err
-	}
-	*cp = append(*cp, p)
-	return nil
-}
-
-var ports backupPorts
-
-func init() {
-	flag.Var(&ports, "backup_ports", "backup ports")
-}
 
 // ClientRequest represents the in-memory state of a client request in the primary.
 type ClientRequest struct {
@@ -62,7 +35,7 @@ func Init(ctx context.Context) error {
 	RegisterView(new(view.ViewChangeRPC))
 	//go ServeHTTP()
 
-	for _, p := range ports {
+	for _, p := range globals.AllOtherPorts() {
 		var err error
 		c, err := rpc.DialHTTP("tcp", fmt.Sprintf("localhost:%v", p))
 		if err != nil {

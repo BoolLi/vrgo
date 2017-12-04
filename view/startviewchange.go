@@ -74,7 +74,7 @@ func (v *ViewChangeRPC) StartViewChange(args *vrrpc.StartViewChangeArgs, resp *v
 		currentProposedViewNum.V = args.ViewNum
 
 		// Send StartViewChange to all other nodes.
-		for _, p := range AllOtherPorts() {
+		for _, p := range globals.AllOtherPorts() {
 			SendStartViewChange(p, args.ViewNum, *flags.Id)
 		}
 	}
@@ -103,7 +103,7 @@ func (v *ViewChangeRPC) DoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.D
 
 // StartView handles the StartView RPC.
 func (v *ViewChangeRPC) StartView(args *vrrpc.StartViewArgs, resp *vrrpc.StartViewResp) error {
-	globals.Log("StartView", "got StartView from new primary: %+v", *flags.Id, args)
+	globals.Log("StartView", "got StartView from new primary: %+v", args)
 	ViewChangeDone <- "backup"
 
 	globals.ViewNum = args.ViewNum
@@ -153,7 +153,7 @@ func runDoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.DoViewChangeResp)
 		log.Fatalf("replica %v received DoViewChange messages with different view nums: %+v\n", *flags.Id, doViewChangeArgsReceived)
 	}
 
-	globals.Log("runDoViewChange", "became the new primary")
+	globals.Log("runDoViewChange", "received %v DoViewChanges == subquorum %v; became the new primary", len(doViewChangeArgsReceived.Args), subquorum)
 
 	// 1. Set new view num.
 	globals.Log("runDoViewChange", "view num: %v => %v", globals.ViewNum, args.ViewNum)
@@ -174,7 +174,7 @@ func runDoViewChange(args *vrrpc.DoViewChangeArgs, resp *vrrpc.DoViewChangeResp)
 	refreshCommitNum()
 
 	// 5. Send StartView to all other replicas.
-	for _, p := range AllOtherPorts() {
+	for _, p := range globals.AllOtherPorts() {
 		sendStartView(p)
 	}
 
@@ -218,23 +218,11 @@ func sameViewNums() bool {
 	return true
 }
 
-// AllOtherPorts returns all the other replica ports except for that of the current node.
-// TODO: Move this function to a proper place.
-func AllOtherPorts() []int {
-	var ps []int
-	for _, p := range globals.AllPorts {
-		if p != *flags.Port {
-			ps = append(ps, p)
-		}
-	}
-	return ps
-}
-
 // InitiateStartViewChange initiates a view change protocol by sending StartViewChange messages to all other replicas.
 func InitiateStartViewChange() {
 	currentProposedViewNum.Locked(func() {
 		currentProposedViewNum.V += 1
-		for _, p := range AllOtherPorts() {
+		for _, p := range globals.AllOtherPorts() {
 			SendStartViewChange(p, currentProposedViewNum.V, *flags.Id)
 		}
 	})

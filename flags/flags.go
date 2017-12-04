@@ -3,6 +3,9 @@ package flags
 
 import "flag"
 
-var Mode = flag.String("mode", "", "the mode to start with; can be 'primary', 'client', or 'backup'")
-var Port = flag.Int("port", 0, "used as the port number in 'server' and 'backup' mode. Used as the primary port to connect to in 'client' mode")
 var Id = flag.Int("id", 0, "ID of the server, backup, or client.")
+var ConfigPath = flag.String("config_path", "", "Path to the config file.")
+
+func init() {
+	flag.Parse()
+}

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/BoolLi/vrgo/backup"
-	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/primary"
@@ -20,9 +19,9 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-// Start a VR process as <mode>. Mode can be "primary", "backup", and "viewchange".
+// Start a VR process.
 // Depending on different conditions, a node can switch between different modes, which is managed by this function.
-func StartVrgo(mode string) {
+func StartVrgo() {
 	ctx := context.Background()
 
 	globals.ClientTable = table.New(cache.NoExpiration, cache.NoExpiration)
@@ -32,13 +31,12 @@ func StartVrgo(mode string) {
 	go func() {
 		// Serve starts an HTTP server to handle RPC requests.
 		rpc.HandleHTTP()
-		l, err := net.Listen("tcp", fmt.Sprintf(":%v", *flags.Port))
+		l, err := net.Listen("tcp", fmt.Sprintf(":%v", globals.Port))
 		if err != nil {
-			log.Fatalf("failed to listen on port %v: %v", *flags.Port, err)
+			log.Fatalf("failed to listen on port %v: %v", globals.Port, err)
 		}
 		http.Serve(l, nil)
 	}()
-	globals.Mode = mode
 
 	for {
 		switch globals.Mode {

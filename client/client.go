@@ -3,8 +3,10 @@ package client
 
 import (
 	"bufio"
+	"encoding/csv"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/rpc"
 	"os"
@@ -26,7 +28,32 @@ var (
 
 // RunClient runs the client code.
 func RunClient() {
-	p := strconv.Itoa(*flags.Port)
+	csvFile, err := os.Open(*flags.ConfigPath)
+	if err != nil {
+		log.Fatalf("failed to open csv file: %v", err)
+	}
+	r := csv.NewReader(bufio.NewReader(csvFile))
+	for {
+		line, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("failed to read line from config %v: %v", csvFile, err)
+		}
+
+		port, err := strconv.Atoi(line[2])
+		if err != nil {
+			log.Fatalf("failed to convert port to int: %v", err)
+		}
+
+		if line[0] == "primary" {
+			globals.Port = port
+			break
+		}
+	}
+
+	p := strconv.Itoa(globals.Port)
 	c, err := rpc.DialHTTP("tcp", "localhost:"+p)
 	if err != nil {
 		log.Fatal("dialing:", err)
@@ -76,11 +103,11 @@ func RunClient() {
 
 func currentPrimaryId() (int, error) {
 	for id, p := range globals.AllPorts {
-		if p == *flags.Port {
+		if p == globals.Port {
 			return id, nil
 		}
 	}
-	return 0, fmt.Errorf("cannot find id corresponding to port %v", *flags.Port)
+	return 0, fmt.Errorf("cannot find id corresponding to port %v", globals.Port)
 }
 
 func printResp(call *rpc.Call) {
@@ -102,8 +129,8 @@ func printResp(call *rpc.Call) {
 	defer clientMux.Unlock()
 	client.Close()
 
-	*flags.Port = globals.AllPorts[newId]
-	p := strconv.Itoa(*flags.Port)
+	globals.Port = globals.AllPorts[newId]
+	p := strconv.Itoa(globals.Port)
 	c, err := rpc.DialHTTP("tcp", "localhost:"+p)
 	if err != nil {
 		log.Fatal("dialing:", err)

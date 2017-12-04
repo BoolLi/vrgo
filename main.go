@@ -1,29 +1,24 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"log"
 	"os"
 
 	"github.com/BoolLi/vrgo/client"
-	"github.com/BoolLi/vrgo/flags"
+	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/monitor"
 )
 
 func main() {
-	flag.Parse()
 	log.SetOutput(os.Stdout)
 
 	// TODO: Make a cancellable context.
-	switch *flags.Mode {
+	switch globals.Mode {
 	case "primary":
-		monitor.StartVrgo("primary")
+		monitor.StartVrgo()
 	case "backup":
-		monitor.StartVrgo("backup")
-	case "client":
-		client.RunClient()
+		monitor.StartVrgo()
 	default:
-		fmt.Printf("mode %v can only be 'server' or 'client'\n", *flags.Mode)
+		client.RunClient()
 	}
 }

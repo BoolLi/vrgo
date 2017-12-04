@@ -2,9 +2,14 @@
 package globals
 
 import (
+	"bufio"
 	"context"
+	"encoding/csv"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"strconv"
 	"sync"
 
 	"github.com/BoolLi/vrgo/flags"
@@ -57,6 +62,9 @@ func Log(f, format string, args ...interface{}) {
 }
 
 var (
+	// The port of the replica.
+	Port int
+
 	// The Operation request ID.
 	OpNum int
 
@@ -78,7 +86,53 @@ var (
 	// The global cancellable context.
 	CtxCancel context.Context
 
-	// AllPorts is a temporary hardcoded map from id to port.
-	// TODO: Generate this dynamically based on a config file.
-	AllPorts = map[int]int{0: 1234, 1: 9000, 2: 9001, 3: 9002, 4: 9003}
+	// AllPorts is a map from id to port.
+	AllPorts = map[int]int{}
 )
+
+func init() {
+	log.Printf("entering globals.init; id: %v", *flags.Id)
+	csvFile, err := os.Open(*flags.ConfigPath)
+	if err != nil {
+		log.Fatalf("failed to open csv file: %v", err)
+	}
+	reader := csv.NewReader(bufio.NewReader(csvFile))
+	for {
+		line, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("failed to read line from config %v: %v", csvFile, err)
+		}
+
+		id, err := strconv.Atoi(line[1])
+		if err != nil {
+			log.Fatalf("failed to convert id to int: %v", err)
+		}
+		port, err := strconv.Atoi(line[2])
+		if err != nil {
+			log.Fatalf("failed to convert port to int: %v", err)
+		}
+		log.Printf("globals.Init: id: %v, port: %v", id, port)
+		AllPorts[id] = port
+
+		// Initialize own mode and port.
+		if id == *flags.Id {
+			Mode = line[0]
+			Port = port
+			Log("globals.init", "initial mode: %v; port: %v", Mode, Port)
+		}
+	}
+}
+
+// AllOtherPorts returns all the other replica ports except for that of the current node.
+func AllOtherPorts() []int {
+	var ps []int
+	for _, p := range AllPorts {
+		if p != Port {
+			ps = append(ps, p)
+		}
+	}
+	return ps
+}
