@@ -37,7 +37,7 @@ func Init(ctx context.Context) error {
 
 	for _, p := range globals.AllOtherPorts() {
 		var err error
-		c, err := rpc.DialHTTP("tcp", fmt.Sprintf("localhost:%v", p))
+		c, err := globals.GetOrCreateClient(fmt.Sprintf("localhost:%v", p))
 		if err != nil {
 			log.Fatal(fmt.Sprintf("failed to connect to backup%v: ", p), err)
 		}

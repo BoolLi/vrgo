@@ -54,7 +54,7 @@ func RunClient() {
 	}
 
 	p := strconv.Itoa(globals.Port)
-	c, err := rpc.DialHTTP("tcp", "localhost:"+p)
+	c, err := globals.GetOrCreateClient("localhost:" + p)
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}
@@ -131,7 +131,7 @@ func printResp(call *rpc.Call) {
 
 	globals.Port = globals.AllPorts[newId]
 	p := strconv.Itoa(globals.Port)
-	c, err := rpc.DialHTTP("tcp", "localhost:"+p)
+	c, err := globals.GetOrCreateClient("localhost:" + p)
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}

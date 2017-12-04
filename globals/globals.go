@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/rpc"
 	"os"
 	"strconv"
 	"sync"
@@ -88,6 +89,9 @@ var (
 
 	// AllPorts is a map from id to port.
 	AllPorts = map[int]int{}
+
+	// clients is a map from hostname to *rpc.Client.
+	clients = map[string]*rpc.Client{}
 )
 
 func init() {
@@ -135,4 +139,16 @@ func AllOtherPorts() []int {
 		}
 	}
 	return ps
+}
+
+// GetOrCreateClient returns a cached rpc.Client or creates a new rpc.Client.
+func GetOrCreateClient(hostname string) (*rpc.Client, error) {
+	if client, ok := clients[hostname]; ok == true {
+		return client, nil
+	}
+	client, err := rpc.DialHTTP("tcp", hostname)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial %v: %v", hostname, err)
+	}
+	return client, nil
 }

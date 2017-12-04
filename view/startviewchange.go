@@ -233,7 +233,7 @@ func SendStartViewChange(port, viewNum, id int) {
 	globals.Log("SendStartViewChange", "sending StartViewChange %v to replica with port %v", viewNum, port)
 	p := strconv.Itoa(port)
 	// TODO: Make it more efficient by caching client for each port.
-	client, err := rpc.DialHTTP("tcp", "localhost:"+p)
+	client, err := globals.GetOrCreateClient("localhost:" + p)
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}
@@ -268,7 +268,7 @@ func sendDoViewChange(viewNum, currentViewNum, opNum, commitNum, id int) {
 	}
 	// call DoViewChange() RPC.
 	p := strconv.Itoa(newPrimaryPort)
-	client, err := rpc.DialHTTP("tcp", "localhost:"+p)
+	client, err := globals.GetOrCreateClient("localhost:" + p)
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}
