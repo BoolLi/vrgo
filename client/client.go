@@ -22,7 +22,7 @@ import (
 var (
 	requestNum = flag.Int("request_num", 0, "request number")
 
-	client    *rpc.Client
+	rpcClient *rpc.Client
 	clientMux sync.Mutex
 )
 
@@ -58,7 +58,9 @@ func RunClient() {
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}
-	client = c
+	clientMux.Lock()
+	rpcClient = c
+	clientMux.Unlock()
 
 	// If we are in automated mode (indicated by negative client id), send
 	// predefined inputs automatically.
@@ -72,7 +74,9 @@ func RunClient() {
 				RequestNum: *requestNum,
 			}
 			var resp vrrpc.Response
-			_ = client.Go("VrgoRPC.Execute", req, &resp, nil)
+			clientMux.Lock()
+			_ = rpcClient.Go("VrgoRPC.Execute", req, &resp, nil)
+			clientMux.Unlock()
 			*requestNum += 1
 		}
 	}
@@ -91,7 +95,7 @@ func RunClient() {
 
 		var resp vrrpc.Response
 		clientMux.Lock()
-		call := client.Go("VrgoRPC.Execute", req, &resp, nil)
+		call := rpcClient.Go("VrgoRPC.Execute", req, &resp, nil)
 		clientMux.Unlock()
 
 		go printResp(call)
@@ -127,7 +131,7 @@ func printResp(call *rpc.Call) {
 	log.Printf("Primary %v => %v", curId, newId)
 	clientMux.Lock()
 	defer clientMux.Unlock()
-	client.Close()
+	//rpcClient.Close()
 
 	globals.Port = globals.AllPorts[newId]
 	p := strconv.Itoa(globals.Port)
@@ -135,5 +139,5 @@ func printResp(call *rpc.Call) {
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}
-	client = c
+	rpcClient = c
 }

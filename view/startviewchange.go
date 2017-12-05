@@ -2,7 +2,6 @@ package view
 
 import (
 	"log"
-	"net/rpc"
 	"strconv"
 	"sync"
 
@@ -285,7 +284,7 @@ func sendStartView(port int) {
 	}
 	var resp vrrpc.StartViewResp
 	p := strconv.Itoa(port)
-	client, err := rpc.DialHTTP("tcp", "localhost:"+p)
+	client, err := globals.GetOrCreateClient("localhost:" + p)
 	if err != nil {
 		log.Fatal("dialing:", err)
 	}

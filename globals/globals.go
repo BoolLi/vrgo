@@ -91,6 +91,8 @@ var (
 	AllPorts = map[int]int{}
 
 	// clients is a map from hostname to *rpc.Client.
+	// This way each node only creates one outgoing client to another node,
+	// and more requests to the same node will reuse the same client.
 	clients = map[string]*rpc.Client{}
 )
 
@@ -150,5 +152,6 @@ func GetOrCreateClient(hostname string) (*rpc.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial %v: %v", hostname, err)
 	}
+	clients[hostname] = client
 	return client, nil
 }

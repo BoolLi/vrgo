@@ -138,6 +138,7 @@ func ProcessIncomingReqs(ctx context.Context) {
 		globals.CommitNum += 1
 
 		// 9. Send reply back to client by pushing the reply to the channel.
+		globals.Log("ProcessIncomingReqs", "primary replying with view num %v", globals.ViewNum)
 		clientReq.done <- &vrrpc.Response{
 			ViewNum:    globals.ViewNum,
 			RequestNum: clientReq.Request.RequestNum,
