@@ -11,9 +11,13 @@ import (
 type VrgoRPC int
 
 func (v *VrgoRPC) Execute(req *vrrpc.Request, resp *vrrpc.Response) error {
-	// TODO: If mode is not primary, then tell client who the new primary is.
+	// If mode is not primary, then tell client to retry or who the new primary is.
 	if globals.Mode != "primary" {
-		globals.Log("Execute", "I am not primary anymore; view num: %v", globals.ViewNum)
+		if globals.Mode == "viewchange" || globals.Mode == "viewchange-init" {
+			globals.Log("Execute", "currently under view change. Try again later")
+		} else {
+			globals.Log("Execute", "I am not primary anymore; view num: %v", globals.ViewNum)
+		}
 		*resp = vrrpc.Response{
 			ViewNum: globals.ViewNum,
 		}
