@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/BoolLi/vrgo/backup"
+	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/primary"
@@ -19,10 +21,24 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
+var (
+	backupTimeout     = 5 * time.Second
+	viewchangeTimeout = 10 * time.Second
+)
+
 // Start a VR process.
 // Depending on different conditions, a node can switch between different modes, which is managed by this function.
 func StartVrgo() {
 	ctx := context.Background()
+
+	crashSig := fmt.Sprintf("./crash-%v", *flags.Id)
+	if crashed(crashSig) {
+		globals.Log("StartVrgo", "crashed before; entering recovery mode")
+	} else {
+		globals.Log("StartVrgo", "hasn't crashed before")
+	}
+
+	writeCrashSignal(crashSig)
 
 	globals.ClientTable = table.New(cache.NoExpiration, cache.NoExpiration)
 	globals.OpLog = oplog.New()
@@ -57,7 +73,7 @@ func StartVrgo() {
 			globals.Log("StartVrgo", "entered backup mode")
 			view.ClearViewChangeStates(true)
 			ctxCancel, cancel := context.WithCancel(ctx)
-			vt := time.NewTimer(5 * time.Second)
+			vt := time.NewTimer(backupTimeout)
 			startBackup(ctxCancel, vt)
 
 			select {
@@ -76,7 +92,7 @@ func StartVrgo() {
 			globals.Mode = "viewchange"
 		case "viewchange":
 			globals.Log("StartVrgo", "entered viewchange mode")
-			vt := time.NewTimer(10 * time.Second)
+			vt := time.NewTimer(viewchangeTimeout)
 			select {
 			case newMode := <-view.ViewChangeDone:
 				globals.Log("StartVrgo", "switched from %v to %v", globals.Mode, newMode)
@@ -87,6 +103,25 @@ func StartVrgo() {
 			}
 			// waits until mode is set to "primary" or "backup"
 		}
+	}
+	// TODO: Delete crashSig before exiting.
+}
+
+func crashed(crashSig string) bool {
+	_, err := ioutil.ReadFile(crashSig)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
+// writeCrashSignal creates a file on disk to indicate crashing.
+// The file is created when the replica starts up and deleted when the replica teminates
+// normally. The file remains on disk if the replica crashed and it will check the
+// existense of this file when it starts up.
+func writeCrashSignal(crashSig string) {
+	if err := ioutil.WriteFile(crashSig, []byte{}, 0644); err != nil {
+		log.Fatalf("failed to write crash signal: %v", err)
 	}
 }
 

@@ -27,6 +27,16 @@ var (
 	backups      []*rpc.Client
 )
 
+// RegisterVrgo registers a Vrgo RPC receiver.
+func RegisterVrgo(rcvr vrrpc.VrgoService) error {
+	return rpc.Register(rcvr)
+}
+
+// RegisterView registers a View RPC receiver.
+func RegisterView(rcvr vrrpc.ViewService) error {
+	return rpc.Register(rcvr)
+}
+
 // Init initializes data structures needed for the primary.
 func Init(ctx context.Context) error {
 	incomingReqs = make(chan ClientRequest, incomingReqsSize)
