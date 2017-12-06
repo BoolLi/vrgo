@@ -120,24 +120,28 @@ func printResp(call *rpc.Call) {
 	if err != nil {
 		log.Fatalf("Failed to look up primary ID: %v", err)
 	}
-	newId := resp.Reply.(*vrrpc.Response).ViewNum % len(globals.AllPorts)
-
 	log.Printf("current view num: %v", resp.Reply.(*vrrpc.Response).ViewNum)
-	if curId == newId {
-		fmt.Printf("Vrgo response: %v\n", resp.Reply.(*vrrpc.Response).OpResult.Message)
+
+	if errMsg := resp.Reply.(*vrrpc.Response).Err; errMsg != "" {
+		if errMsg == "not primary" {
+			newId := resp.Reply.(*vrrpc.Response).ViewNum % len(globals.AllPorts)
+
+			log.Printf("Primary %v => %v", curId, newId)
+			clientMux.Lock()
+			defer clientMux.Unlock()
+
+			globals.Port = globals.AllPorts[newId]
+			p := strconv.Itoa(globals.Port)
+			c, err := globals.GetOrCreateClient("localhost:" + p)
+			if err != nil {
+				log.Fatal("dialing:", err)
+			}
+			rpcClient = c
+		} else if errMsg == "view change" {
+			log.Printf("currently under view change")
+		}
 		return
 	}
 
-	log.Printf("Primary %v => %v", curId, newId)
-	clientMux.Lock()
-	defer clientMux.Unlock()
-	//rpcClient.Close()
-
-	globals.Port = globals.AllPorts[newId]
-	p := strconv.Itoa(globals.Port)
-	c, err := globals.GetOrCreateClient("localhost:" + p)
-	if err != nil {
-		log.Fatal("dialing:", err)
-	}
-	rpcClient = c
+	fmt.Printf("Vrgo response: %v\n", resp.Reply.(*vrrpc.Response).OpResult.Message)
 }

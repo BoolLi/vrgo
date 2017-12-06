@@ -1,6 +1,7 @@
 package primary
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/BoolLi/vrgo/globals"
@@ -12,10 +13,21 @@ type VrgoRPC int
 
 func (v *VrgoRPC) Execute(req *vrrpc.Request, resp *vrrpc.Response) error {
 	// TODO: If mode is not primary, then tell client who the new primary is.
-	if globals.Mode != "primary" {
-		globals.Log("Execute", "I am not primary anymore; view num: %v", globals.ViewNum)
+	mode := globals.Mode
+
+	if mode != "primary" {
+		globals.Log("Execute", "not primary; view num: %v", globals.ViewNum)
+		var err string
+		if mode == "backup" {
+			globals.Log("Execute", "I am not primary anymore; view num: %v", globals.ViewNum)
+			err = fmt.Sprintf("not primary")
+		} else if mode == "viewchange" || mode == "viewchange-init" {
+			globals.Log("Execute", "under view change")
+			err = fmt.Sprintf("view change")
+		}
 		*resp = vrrpc.Response{
 			ViewNum: globals.ViewNum,
+			Err:     err,
 		}
 		return nil
 	}

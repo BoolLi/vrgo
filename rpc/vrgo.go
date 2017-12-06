@@ -25,6 +25,7 @@ type Response struct {
 	ViewNum    int
 	RequestNum int
 	OpResult   OperationResult
+	Err        string
 }
 
 // Operation is the user operation.
