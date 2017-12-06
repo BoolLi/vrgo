@@ -43,7 +43,7 @@ func StartVrgo() {
 		case "primary":
 			globals.Log("StartVrgo", "entered primary mode")
 			// TODO: It's probably not enough to just clear the states at the start of primary and backup.
-			view.ClearViewChangeStates()
+			view.ClearViewChangeStates(true)
 			ctxCancel, cancel := context.WithCancel(ctx)
 			globals.CtxCancel = ctxCancel
 			startPrimary(ctxCancel)
@@ -55,7 +55,7 @@ func StartVrgo() {
 			}
 		case "backup":
 			globals.Log("StartVrgo", "entered backup mode")
-			view.ClearViewChangeStates()
+			view.ClearViewChangeStates(true)
 			ctxCancel, cancel := context.WithCancel(ctx)
 			vt := time.NewTimer(5 * time.Second)
 			startBackup(ctxCancel, vt)
@@ -76,10 +76,14 @@ func StartVrgo() {
 			globals.Mode = "viewchange"
 		case "viewchange":
 			globals.Log("StartVrgo", "entered viewchange mode")
+			vt := time.NewTimer(10 * time.Second)
 			select {
 			case newMode := <-view.ViewChangeDone:
 				globals.Log("StartVrgo", "switched from %v to %v", globals.Mode, newMode)
 				globals.Mode = newMode
+			case <-vt.C:
+				view.ClearViewChangeStates(false)
+				globals.Mode = "viewchange-init"
 			}
 			// waits until mode is set to "primary" or "backup"
 		}

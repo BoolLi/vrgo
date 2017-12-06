@@ -12,7 +12,7 @@ import (
 type VrgoRPC int
 
 func (v *VrgoRPC) Execute(req *vrrpc.Request, resp *vrrpc.Response) error {
-	// TODO: If mode is not primary, then tell client who the new primary is.
+	// If mode is not primary, then tell client who the new primary is.
 	mode := globals.Mode
 
 	if mode != "primary" {

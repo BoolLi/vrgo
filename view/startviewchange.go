@@ -82,7 +82,7 @@ func (v *ViewChangeRPC) StartViewChange(args *vrrpc.StartViewChangeArgs, resp *v
 
 	// Only send DoViewChange when enough StartViewChange messages have been received and DoViewChange hasn't been sent before.
 	sendDoViewChangeExecuted.Locked(func() {
-		if startViewChangeReceived.V > subquorum && !sendDoViewChangeExecuted.V {
+		if startViewChangeReceived.V >= subquorum && !sendDoViewChangeExecuted.V {
 			globals.Log("StartViewChange", "got more than %v StartViewChange messages", subquorum)
 			// TODO: Should we do this in a separate thread?
 			sendDoViewChange(currentProposedViewNum.V, globals.ViewNum, globals.OpNum, globals.CommitNum, *flags.Id)
@@ -111,7 +111,7 @@ func (v *ViewChangeRPC) StartView(args *vrrpc.StartViewArgs, resp *vrrpc.StartVi
 
 // ClearViewChangeStates clears the intermediate states of the current view change.
 // This function is atomic and thread-safe.
-func ClearViewChangeStates() {
+func ClearViewChangeStates(clearProposedView bool) {
 	startViewChangeReceived.Lock()
 	defer startViewChangeReceived.Unlock()
 	currentProposedViewNum.Lock()
@@ -126,7 +126,9 @@ func ClearViewChangeStates() {
 	}
 
 	startViewChangeReceived.V = 0
-	currentProposedViewNum.V = globals.ViewNum
+	if clearProposedView {
+		currentProposedViewNum.V = globals.ViewNum
+	}
 	doViewChangeArgsReceived.Args = nil
 	sendDoViewChangeExecuted.V = false
 }
