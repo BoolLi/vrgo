@@ -76,8 +76,10 @@ func PerformRecovery(ctx context.Context) {
 	recoveryReadyChan := make(chan int)
 
 	// Block when either of the following cases happens first:
-	// 1. Primary gets f replies from backups.
-	// 2. Primary's context gets cancelled.
+	// 1. Gets f+1 replies from replicas, one of which is from primary.
+	// 2. Context gets cancelled.
+	// 3. Timer expires.
+	// 4. Other replicas are under view change.
 	go func() {
 		res := <-recoveryPrimaryChan
 		responses = append(responses, res)
