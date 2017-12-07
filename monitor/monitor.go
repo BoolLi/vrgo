@@ -15,6 +15,7 @@ import (
 	"github.com/BoolLi/vrgo/globals"
 	"github.com/BoolLi/vrgo/oplog"
 	"github.com/BoolLi/vrgo/primary"
+	"github.com/BoolLi/vrgo/recovery"
 	"github.com/BoolLi/vrgo/table"
 	"github.com/BoolLi/vrgo/view"
 
@@ -31,9 +32,12 @@ var (
 func StartVrgo() {
 	ctx := context.Background()
 
+	recovery.RegisterRecovery(new(recovery.RecoveryRPC))
+
 	crashSig := fmt.Sprintf("./crash-%v", *flags.Id)
 	if crashed(crashSig) {
 		globals.Log("StartVrgo", "crashed before; entering recovery mode")
+		globals.Mode = "recovery"
 	} else {
 		globals.Log("StartVrgo", "hasn't crashed before")
 	}
@@ -102,6 +106,8 @@ func StartVrgo() {
 				globals.Mode = "viewchange-init"
 			}
 			// waits until mode is set to "primary" or "backup"
+		case "recovery":
+
 		}
 	}
 	// TODO: Delete crashSig before exiting.

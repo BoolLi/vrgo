@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/BoolLi/vrgo/client"
 	"github.com/BoolLi/vrgo/globals"
@@ -11,6 +13,7 @@ import (
 
 func main() {
 	log.SetOutput(os.Stdout)
+	rand.Seed(time.Now().Unix())
 
 	// TODO: Make a cancellable context.
 	switch globals.Mode {

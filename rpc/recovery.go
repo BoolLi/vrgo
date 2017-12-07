@@ -19,4 +19,5 @@ type RecoveryResponse struct {
 	OpNum     int
 	CommitNum int
 	Id        int
+	Mode      string
 }
