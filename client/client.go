@@ -8,10 +8,9 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/rpc"
 	"os"
 	"strconv"
-	"sync"
+	"time"
 
 	"github.com/BoolLi/vrgo/flags"
 	"github.com/BoolLi/vrgo/globals"
@@ -21,9 +20,6 @@ import (
 
 var (
 	requestNum = flag.Int("request_num", 0, "request number")
-
-	rpcClient *rpc.Client
-	clientMux sync.Mutex
 )
 
 // RunClient runs the client code.
@@ -53,37 +49,9 @@ func RunClient() {
 		}
 	}
 
-	p := strconv.Itoa(globals.Port)
-	c, err := globals.GetOrCreateClient("localhost:" + p)
-	if err != nil {
-		log.Fatal("dialing:", err)
-	}
-	clientMux.Lock()
-	rpcClient = c
-	clientMux.Unlock()
-
-	// If we are in automated mode (indicated by negative client id), send
-	// predefined inputs automatically.
-	if *flags.Id < 0 {
-		for _, element := range ClientInput {
-			req := vrrpc.Request{
-				Op: vrrpc.Operation{
-					Message: element,
-				},
-				ClientId:   *flags.Id,
-				RequestNum: *requestNum,
-			}
-			var resp vrrpc.Response
-			clientMux.Lock()
-			_ = rpcClient.Go("VrgoRPC.Execute", req, &resp, nil)
-			clientMux.Unlock()
-			*requestNum += 1
-		}
-	}
-
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print("Enter text: \n")
+		fmt.Print("Enter text: ")
 		text, _ := reader.ReadString('\n')
 		req := vrrpc.Request{
 			Op: vrrpc.Operation{
@@ -93,15 +61,34 @@ func RunClient() {
 			RequestNum: *requestNum,
 		}
 
+		p := strconv.Itoa(globals.Port)
+		rpcClient, err := globals.GetOrCreateClient("localhost:" + p)
+		if err != nil {
+			log.Fatal("dialing:", err)
+		}
+		curId, err := currentPrimaryId()
+		if err != nil {
+			log.Fatalf("failed to get current primary id")
+		}
+		log.Printf("sending to replica %v", curId)
+
 		var resp vrrpc.Response
-		clientMux.Lock()
-		call := rpcClient.Go("VrgoRPC.Execute", req, &resp, nil)
-		clientMux.Unlock()
 
-		go printResp(call)
+		ch := make(chan error)
 
-		// TODO: Need to find a way to increment requestNum but also allow users to send request with same requestNum.
-		*requestNum = *requestNum + 1
+		go func() {
+			ch <- rpcClient.Call("VrgoRPC.Execute", req, &resp)
+		}()
+		select {
+		case err := <-ch:
+			if err != nil {
+				log.Printf("failed to call VrgoRPC: %v", err)
+			}
+			processResp(&resp)
+			*requestNum = *requestNum + 1
+		case <-time.After(5 * time.Second):
+			log.Printf("timed out trying to connect to replica %v", curId)
+		}
 	}
 }
 
@@ -114,34 +101,25 @@ func currentPrimaryId() (int, error) {
 	return 0, fmt.Errorf("cannot find id corresponding to port %v", globals.Port)
 }
 
-func printResp(call *rpc.Call) {
-	resp := <-call.Done
+func processResp(resp *vrrpc.Response) {
 	curId, err := currentPrimaryId()
 	if err != nil {
 		log.Fatalf("Failed to look up primary ID: %v", err)
 	}
-	log.Printf("current view num: %v", resp.Reply.(*vrrpc.Response).ViewNum)
+	log.Printf("current view num: %v", resp.ViewNum)
 
-	if errMsg := resp.Reply.(*vrrpc.Response).Err; errMsg != "" {
+	if errMsg := resp.Err; errMsg != "" {
 		if errMsg == "not primary" {
-			newId := resp.Reply.(*vrrpc.Response).ViewNum % len(globals.AllPorts)
-
+			newId := resp.ViewNum % len(globals.AllPorts)
 			log.Printf("Primary %v => %v", curId, newId)
-			clientMux.Lock()
-			defer clientMux.Unlock()
-
 			globals.Port = globals.AllPorts[newId]
-			p := strconv.Itoa(globals.Port)
-			c, err := globals.GetOrCreateClient("localhost:" + p)
-			if err != nil {
-				log.Fatal("dialing:", err)
-			}
-			rpcClient = c
 		} else if errMsg == "view change" {
 			log.Printf("currently under view change")
+		} else {
+			log.Printf("got error message but it was not rognized: %v", errMsg)
 		}
 		return
 	}
 
-	fmt.Printf("Vrgo response: %v\n", resp.Reply.(*vrrpc.Response).OpResult.Message)
+	fmt.Printf("Vrgo response: %v\n", resp.OpResult.Message)
 }

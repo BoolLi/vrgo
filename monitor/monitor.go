@@ -107,7 +107,15 @@ func StartVrgo() {
 			}
 			// waits until mode is set to "primary" or "backup"
 		case "recovery":
-
+			ctxCancel, cancel := context.WithCancel(ctx)
+			success := recovery.PerformRecovery(ctxCancel)
+			if success {
+				globals.Mode = "backup"
+			} else {
+				cancel()
+				globals.Log("StartVrgo", "recovery failed; recover again")
+				globals.Mode = "recovery"
+			}
 		}
 	}
 	// TODO: Delete crashSig before exiting.

@@ -22,6 +22,7 @@ if __name__ == "__main__":
 
   f = open('run_vrgo.sh', 'w')
   f.write("#!/bin/bash\n")
+  f.write('eval "{}"\n'.format('rm crash-*'))
 
   with open('replicas.csv') as replicas:
     csvreader = csv.reader(replicas, delimiter=',')

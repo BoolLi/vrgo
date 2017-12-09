@@ -21,7 +21,7 @@ func RegisterRecovery(rcvr vrrpc.RecoveryService) error {
 }
 
 func (r *RecoveryRPC) Recover(request *vrrpc.RecoveryRequest, response *vrrpc.RecoveryResponse) error {
-	response = &vrrpc.RecoveryResponse{
+	*response = vrrpc.RecoveryResponse{
 		ViewNum: globals.ViewNum,
 		Nonce:   request.Nonce,
 		Id:      *flags.Id,
@@ -35,11 +35,12 @@ func (r *RecoveryRPC) Recover(request *vrrpc.RecoveryRequest, response *vrrpc.Re
 	return nil
 }
 
-func PerformRecovery(ctx context.Context) {
+func PerformRecovery(ctx context.Context) bool {
 	recoveryPrimaryChan := make(chan *vrrpc.RecoveryResponse)
 	recoveryBackupChan := make(chan *vrrpc.RecoveryResponse)
 	var responses []*vrrpc.RecoveryResponse
 	subquorum := len(globals.AllOtherPorts()) / 2
+	nonce := rand.Int()
 
 	for _, port := range globals.AllOtherPorts() {
 		globals.Log("PerformRecovery", "sending Recovery request to replica with port %v", port)
@@ -51,7 +52,7 @@ func PerformRecovery(ctx context.Context) {
 
 		req := &vrrpc.RecoveryRequest{
 			Id:    *flags.Id,
-			Nonce: rand.Int(),
+			Nonce: nonce,
 		}
 
 		go func(c *rpc.Client) {
@@ -69,6 +70,7 @@ func PerformRecovery(ctx context.Context) {
 			} else {
 				// Other replicas are under view change. Abort this one and restart recovery.
 				// Write to viewchangeChan.
+				globals.Log("PerformRecovery", "other nodes are under view change: %v", resp.Mode)
 			}
 		}(client)
 	}
@@ -93,11 +95,42 @@ func PerformRecovery(ctx context.Context) {
 	select {
 	case _ = <-recoveryReadyChan:
 		globals.Log("PerformRecovery", "got recovery responses: %+v", responses)
+		return applyRecoveryResps(responses)
 	case <-ctx.Done():
 		globals.Log("PerformRecovery", "recovery context cancelled when waiting for %v replies from backups: %+v", subquorum, ctx.Err())
-		return
+		return false
 		// 1. case timerChan
 		// 2. case viewchangeChan
 	}
 
+}
+
+func applyRecoveryResps(responses []*vrrpc.RecoveryResponse) bool {
+	// 1. Check if all nonces are the same.
+	nonce := responses[0].Nonce
+	for _, r := range responses {
+		if r.Nonce != nonce {
+			globals.Log("applyRecoveryResps", "got different nonces from different replies")
+			return false
+		}
+	}
+
+	// 2. Update replica state to primary's state.
+	var primaryResp *vrrpc.RecoveryResponse
+	for _, r := range responses {
+		if r.Mode == "primary" {
+			primaryResp = r
+		}
+	}
+	if primaryResp == nil {
+		globals.Log("applyRecoveryResps", "no primary response found")
+		return false
+	}
+
+	globals.ViewNum = primaryResp.ViewNum
+	globals.OpLog.Requests = primaryResp.Log
+	globals.OpNum = primaryResp.OpNum
+	globals.CommitNum = primaryResp.CommitNum
+	globals.Log("applyRecoveryResps", "finished recovery; view num: %v; op num: %v; commit num: %v", globals.ViewNum, globals.OpNum, globals.CommitNum)
+	return true
 }
